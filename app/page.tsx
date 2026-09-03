@@ -11,13 +11,6 @@ import { HomeTestimonials } from "@/components/home/testimonials";
 export default function Home() {
   return (
     <main className="home-page">
-      <div className="glass-orbs" aria-hidden="true">
-        <i className="orb orb-a" />
-        <i className="orb orb-b" />
-        <i className="orb orb-c" />
-        <i className="orb orb-d" />
-      </div>
-      <div className="glass-grain" aria-hidden="true" />
       <AnnouncementBar />
       <HomeHero />
       <HomeProductSlider />

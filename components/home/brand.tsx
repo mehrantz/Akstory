@@ -8,7 +8,7 @@ export function HomeBrand() {
         <div className="brand-book" />
         <p>داستان پشت داستان‌ها</p>
       </div>
-      <div className="brand-copy glass-brand">
+      <div className="brand-copy">
         <span>با برند آشنا شو</span>
         <h2>عکستوری برای خاطره‌هایی است که ارزش ورق زدن دارند</h2>
         <div className="brand-values">
