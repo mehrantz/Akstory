@@ -118,16 +118,175 @@ export const bookProducts: BookProduct[] = [
   },
 ];
 
+export type SliderProduct = {
+  id: string;
+  templateId: string;
+  series: string;
+  badge?: string;
+  title: string;
+  tagline: string;
+  price: string;
+  reviews: number;
+  visual: "closed" | "open";
+  cover: string;
+  accent: string;
+  coverTitle: string;
+  coverMeta: string;
+};
+
+export const sliderProducts: SliderProduct[] = [
+  {
+    id: "summer-north",
+    templateId: "travel-minimal",
+    series: "سری تابستان",
+    badge: "جدید",
+    title: "کتاب عکس شخصی",
+    tagline: "لحظه‌های آفتابی‌ات، ذخیره و ماندگار",
+    price: "۱٬۴۹۰٬۰۰۰",
+    reviews: 17,
+    visual: "closed",
+    cover: "#f3b7c4",
+    accent: "#fff6f3",
+    coverTitle: "تابستان ۱۴۰۵",
+    coverMeta: "شمال",
+  },
+  {
+    id: "yazd-trip",
+    templateId: "travel-premium",
+    series: "سری سفر",
+    title: "کتاب عکس شخصی",
+    tagline: "کوچه‌های خشت و آفتاب، یک‌جا جمع",
+    price: "۱٬۶۹۰٬۰۰۰",
+    reviews: 24,
+    visual: "closed",
+    cover: "#f4efe8",
+    accent: "#c45c48",
+    coverTitle: "یزد ۱۴۰۴",
+    coverMeta: "سفر",
+  },
+  {
+    id: "open-spread",
+    templateId: "family-table",
+    series: "سری خانواده",
+    title: "کتاب عکس شخصی",
+    tagline: "صفحه‌ها را ورق بزن؛ خاطره زنده می‌شود",
+    price: "۱٬۵۴۰٬۰۰۰",
+    reviews: 31,
+    visual: "open",
+    cover: "#efe7dc",
+    accent: "#c45c48",
+    coverTitle: "خانواده",
+    coverMeta: "باز",
+  },
+  {
+    id: "our-story-slide",
+    templateId: "our-story",
+    series: "سری عاشقانه",
+    title: "کتاب عکس شخصی",
+    tagline: "داستان دونفره، جلد سخت و ماندگار",
+    price: "۱٬۶۹۰٬۰۰۰",
+    reviews: 19,
+    visual: "closed",
+    cover: "#e7c1bb",
+    accent: "#7f9b8f",
+    coverTitle: "داستان ما",
+    coverMeta: "سالگرد",
+  },
+  {
+    id: "first-year-slide",
+    templateId: "first-year",
+    series: "سری کودک",
+    badge: "پرفروش",
+    title: "کتاب عکس شخصی",
+    tagline: "اولین لبخندها، از گوشی به کاغذ",
+    price: "۱٬۵۹۰٬۰۰۰",
+    reviews: 42,
+    visual: "closed",
+    cover: "#f0d48a",
+    accent: "#8ca7a2",
+    coverTitle: "سال اول",
+    coverMeta: "کودک",
+  },
+  {
+    id: "family-table-slide",
+    templateId: "family-table",
+    series: "سری خانواده",
+    title: "کتاب عکس شخصی",
+    tagline: "دورهمی‌های ساده، شایسته‌ی یک کتاب",
+    price: "۱٬۵۴۰٬۰۰۰",
+    reviews: 12,
+    visual: "open",
+    cover: "#d5ddc8",
+    accent: "#c96752",
+    coverTitle: "میز خانواده",
+    coverMeta: "خانه",
+  },
+  {
+    id: "travel-premium-slide",
+    templateId: "travel-premium",
+    series: "سری سفر",
+    title: "کتاب عکس شخصی",
+    tagline: "سفرهای بلند، جلد خاص و کاغذ ضخیم",
+    price: "۲٬۱۹۰٬۰۰۰",
+    reviews: 8,
+    visual: "closed",
+    cover: "#8fb3af",
+    accent: "#f3e6c8",
+    coverTitle: "جاده",
+    coverMeta: "پریمیوم",
+  },
+];
+
+export const shopCollections = [
+  { href: "/create", label: "سری سفر" },
+  { href: "/create", label: "سری عاشقانه" },
+  { href: "/create", label: "سری کودک" },
+  { href: "/create", label: "سری خانواده" },
+  { href: "/create/templates", label: "همه قالب‌ها" },
+];
+
 export const howSteps = [
-  { n: "۰۱", title: "انتخاب عکس‌ها", text: "عکس‌های گوشی‌ات را انتخاب و مرتب کن." },
-  { n: "۰۲", title: "ساخت داستان تصویری", text: "قالب و چیدمان را بساز و متن اضافه کن." },
-  { n: "۰۳", title: "دریافت کتاب", text: "پیش‌نمایش را ببین، سفارش بده و کتاب را تحویل بگیر." },
+  { n: "۰۱", title: "قالب را انتخاب کن", text: "یک جلد آماده بردار یا از صفر شروع کن. اپ لازم نیست." },
+  { n: "۰۲", title: "عکس‌هایت را بگذار", text: "از گوشی یا لپ‌تاپ آپلود کن؛ چیدمان اولیه سریع ساخته می‌شود." },
+  { n: "۰۳", title: "کتاب را مال خودت کن", text: "فونت، رنگ، صفحه و متن را عوض کن؛ بعد پیش‌نمایش را ببین و سفارش بده." },
+];
+
+export const brandValues = [
+  { title: "لحظه‌هایی که می‌مانند", text: "عکس‌های گوشی به کتابی تبدیل می‌شوند که می‌شود ورق زد و نگه داشت." },
+  { title: "برای دوست‌داشته شدن", text: "روی میز می‌ماند، نه در گالری. طراحی‌شده برای دیده شدن و ورق خوردن." },
+  { title: "داستان تو، به سبک تو", text: "قالب آماده هست؛ ولی هر صفحه، رنگ و متن قابل تغییر است." },
+  { title: "از آدم‌ها و جاها", text: "سفر، خانواده، عشق و کودک؛ عکستوری برای پیوند آدم‌ها با خاطره‌هاست." },
 ];
 
 export const benefits = [
-  { title: "طراحی آسان", text: "بدون دانش طراحی، در چند دقیقه پیش‌نمایش کتابت را ببین." },
-  { title: "کیفیت چاپ حرفه‌ای", text: "کنترل کیفیت عکس و چاپ دقیق قبل از ارسال." },
-  { title: "خاطرات ماندگار", text: "عکس‌ها از گالری گوشی به کتابی برای ورق زدن تبدیل می‌شوند." },
+  { title: "چاپ دقیق و واقعی", text: "همان چیزی که روی صفحه می‌بینی چاپ می‌شود؛ رنگ‌ها و جزئیات عکس روی کاغذ ضخیم." },
+  { title: "جلد سخت ماندگار", text: "کتابی برای ورق زدن هر روز، نه بایگانی در گوشی. صحافی محکم و کاغذ باکیفیت." },
+  { title: "مناسب هدیه", text: "بسته‌بندی تمیز، بدون فاکتور داخل بسته؛ آمادهٔ دادن به کسی که دوستش داری." },
+];
+
+export const qualityHighlights = [
+  "چاپ حرفه‌ای روی کاغذ ضخیم",
+  "جلد سخت و صحافی مقاوم",
+  "پیش‌نمایش کامل قبل از سفارش",
+  "ارسال به سراسر ایران",
+];
+
+export const testimonials = [
+  {
+    quote: "عکس‌های سفر شمال را از گوشی درآوردیم و در کمتر از یک ربع کتاب شد. کیفیت چاپ از چیزی که انتظار داشتم بهتر بود.",
+    name: "نگار ر.",
+    city: "تهران",
+  },
+  {
+    quote: "برای سالگرد یک کتاب دونفره ساختم. قالب آماده بود، فقط عکس‌ها را چیدم. هدیه‌ای شد که واقعاً ورق می‌زنیم.",
+    name: "امیرحسین ک.",
+    city: "اصفهان",
+  },
+  {
+    quote: "اولین سال دخترمان را به کتاب تبدیل کردیم. مسیر ساخت ساده بود و قبل از چاپ همه صفحات را دیدم.",
+    name: "مریم ش.",
+    city: "شیراز",
+  },
 ];
 
 export const faqs: [string, string][] = [
