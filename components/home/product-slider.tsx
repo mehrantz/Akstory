@@ -18,10 +18,16 @@ function BookVisual({ item }: { item: SliderProduct }) {
             <i />
           </div>
           <div className="open-page">
-            <i />
-            <i />
-            <i />
-            <i />
+            {item.image ? (
+              <img src={item.image} alt="" className="open-page-image" />
+            ) : (
+              <>
+                <i />
+                <i />
+                <i />
+                <i />
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -33,8 +39,11 @@ function BookVisual({ item }: { item: SliderProduct }) {
       <div className="closed-book" style={{ background: item.cover }}>
         <span className="closed-spine" style={{ background: item.accent }} />
         <div className="closed-face">
-          <small>{item.coverMeta}</small>
-          <b>{item.coverTitle}</b>
+          {item.image && <img src={item.image} alt={item.coverTitle} className="book-cover-image" />}
+          <div className="book-cover-text" style={{ textShadow: item.image ? "0 2px 4px rgba(0,0,0,0.5)" : "none", color: item.image ? "#fff" : "inherit" }}>
+            <small>{item.coverMeta}</small>
+            <b>{item.coverTitle}</b>
+          </div>
         </div>
       </div>
     </div>

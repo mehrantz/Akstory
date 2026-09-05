@@ -132,6 +132,7 @@ export type SliderProduct = {
   accent: string;
   coverTitle: string;
   coverMeta: string;
+  image?: string;
 };
 
 export const sliderProducts: SliderProduct[] = [
@@ -149,6 +150,7 @@ export const sliderProducts: SliderProduct[] = [
     accent: "#fff6f3",
     coverTitle: "تابستان ۱۴۰۵",
     coverMeta: "شمال",
+    image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=800&auto=format&fit=crop",
   },
   {
     id: "yazd-trip",
@@ -163,6 +165,7 @@ export const sliderProducts: SliderProduct[] = [
     accent: "#c45c48",
     coverTitle: "یزد ۱۴۰۴",
     coverMeta: "سفر",
+    image: "https://images.unsplash.com/photo-1520113412646-fa28db35b678?q=80&w=800&auto=format&fit=crop",
   },
   {
     id: "open-spread",
@@ -177,6 +180,7 @@ export const sliderProducts: SliderProduct[] = [
     accent: "#c45c48",
     coverTitle: "خانواده",
     coverMeta: "باز",
+    image: "https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=800&auto=format&fit=crop",
   },
   {
     id: "our-story-slide",
@@ -191,6 +195,7 @@ export const sliderProducts: SliderProduct[] = [
     accent: "#7f9b8f",
     coverTitle: "داستان ما",
     coverMeta: "سالگرد",
+    image: "https://images.unsplash.com/photo-1518199266791-5375a83190b7?q=80&w=800&auto=format&fit=crop",
   },
   {
     id: "first-year-slide",
@@ -206,6 +211,7 @@ export const sliderProducts: SliderProduct[] = [
     accent: "#8ca7a2",
     coverTitle: "سال اول",
     coverMeta: "کودک",
+    image: "https://images.unsplash.com/photo-1519689680058-324335c77eba?q=80&w=800&auto=format&fit=crop",
   },
   {
     id: "family-table-slide",
@@ -220,6 +226,7 @@ export const sliderProducts: SliderProduct[] = [
     accent: "#c96752",
     coverTitle: "میز خانواده",
     coverMeta: "خانه",
+    image: "https://images.unsplash.com/photo-1523301343968-6a6ebf63c672?q=80&w=800&auto=format&fit=crop",
   },
   {
     id: "travel-premium-slide",
@@ -234,6 +241,7 @@ export const sliderProducts: SliderProduct[] = [
     accent: "#f3e6c8",
     coverTitle: "جاده",
     coverMeta: "پریمیوم",
+    image: "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?q=80&w=800&auto=format&fit=crop",
   },
 ];
 
