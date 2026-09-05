@@ -6,7 +6,9 @@ export function HomeHero() {
   return (
     <section className="hero-banner" id="top">
       <div className="hero-scene">
-        <div className="hero-photo" aria-hidden="true" />
+        <div className="hero-photo" aria-hidden="true">
+          <img src="/images/hero-bg.jpg" alt="" />
+        </div>
         <SiteHeader overlay />
         <div className="hero-overlay">
           <h1>
@@ -18,6 +20,9 @@ export function HomeHero() {
           <div className="hero-actions">
             <Link className="hero-btn hero-btn-fill" href="/create/templates">
               پرفروش‌ها
+            </Link>
+            <Link className="hero-btn hero-btn-ghost" href="/how-it-works">
+              چطوری کار می‌کنه؟
             </Link>
           </div>
         </div>

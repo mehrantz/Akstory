@@ -5,7 +5,7 @@ export function HomeBrand() {
   return (
     <section className="brand-story" id="brand">
       <div className="brand-visual" aria-hidden="true">
-        <div className="brand-book" />
+        <img src="/images/brand-visual.jpg" alt="" />
         <p>داستان پشت داستان‌ها</p>
       </div>
       <div className="brand-copy">
