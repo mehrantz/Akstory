@@ -5,6 +5,7 @@ import { ImagePlus, Plus } from "lucide-react";
 import { ImageToolbar } from "@/components/editor/image-toolbar";
 import { ShapeToolbar } from "@/components/editor/shape-toolbar";
 import { TextToolbar } from "@/components/editor/text-toolbar";
+import { snapBox, type GuideRect } from "@/lib/align-guides";
 import type { BookPage, Decor, PhotoFilter, PhotoSlot, TextBlock } from "@/lib/editor-book";
 import type { ProjectPhoto } from "@/lib/photos";
 
@@ -61,6 +62,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
   const suppressClick = useRef(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
 
   useEffect(() => {
     if (focus?.type !== "text") setEditingId(null);
@@ -78,7 +80,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
     apply: (next: Box) => void,
     mode: DragMode = "move",
     onDone?: (moved: boolean) => void,
-    options?: { keepMenu?: boolean },
+    options?: { keepMenu?: boolean; id?: string },
   ) {
     event.preventDefault();
     event.stopPropagation();
@@ -86,10 +88,25 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
     if (!box) return;
     const startX = event.clientX;
     const startY = event.clientY;
-    const origin = { x: current.x, y: current.y, w: current.w, h: current.h ?? 14 };
+    const measured = measureRect(current, options?.id);
+    const origin = { x: current.x, y: current.y, w: current.w, h: measured.h };
     const hasHeight = current.h != null;
+    const siblings = siblingRects(options?.id);
     let moved = false;
     if (mode === "move" && !options?.keepMenu) setDragging(true);
+
+    function commit(next: Box) {
+      if (!moved) return;
+      const raw = { x: next.x, y: next.y, w: next.w, h: next.h ?? origin.h };
+      const { rect, guides: nextGuides } = snapBox(raw, siblings, mode);
+      setGuides(nextGuides);
+      apply({
+        x: rect.x,
+        y: rect.y,
+        w: rect.w,
+        ...(hasHeight ? { h: rect.h } : {}),
+      });
+    }
 
     function onMove(next: PointerEvent) {
       const dx = ((next.clientX - startX) / box!.width) * 100;
@@ -101,25 +118,25 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
       }
 
       if (mode === "right") {
-        apply({ x: origin.x, y: origin.y, w: clamp(origin.w + dx, 8, 100 - origin.x), h: origin.h });
+        commit({ x: origin.x, y: origin.y, w: clamp(origin.w + dx, 8, 100 - origin.x), h: origin.h });
         return;
       }
       if (mode === "left") {
         const nextX = clamp(origin.x + dx, 0, origin.x + origin.w - 8);
-        apply({ x: nextX, y: origin.y, w: clamp(origin.w - (nextX - origin.x), 8, 100), h: origin.h });
+        commit({ x: nextX, y: origin.y, w: clamp(origin.w - (nextX - origin.x), 8, 100), h: origin.h });
         return;
       }
       if (mode === "bottom") {
-        apply({ x: origin.x, y: origin.y, w: origin.w, h: clamp(origin.h + dy, 8, 100 - origin.y) });
+        commit({ x: origin.x, y: origin.y, w: origin.w, h: clamp(origin.h + dy, 8, 100 - origin.y) });
         return;
       }
       if (mode === "top") {
         const nextY = clamp(origin.y + dy, 0, origin.y + origin.h - 8);
-        apply({ x: origin.x, y: nextY, w: origin.w, h: clamp(origin.h - (nextY - origin.y), 8, 100) });
+        commit({ x: origin.x, y: nextY, w: origin.w, h: clamp(origin.h - (nextY - origin.y), 8, 100) });
         return;
       }
       if (mode === "se") {
-        apply({
+        commit({
           x: origin.x,
           y: origin.y,
           w: clamp(origin.w + dx, 8, 100 - origin.x),
@@ -129,7 +146,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
       }
       if (mode === "ne") {
         const nextY = clamp(origin.y + dy, 0, origin.y + origin.h - 8);
-        apply({
+        commit({
           x: origin.x,
           y: nextY,
           w: clamp(origin.w + dx, 8, 100 - origin.x),
@@ -139,7 +156,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
       }
       if (mode === "sw") {
         const nextX = clamp(origin.x + dx, 0, origin.x + origin.w - 8);
-        apply({
+        commit({
           x: nextX,
           y: origin.y,
           w: clamp(origin.w - (nextX - origin.x), 8, 100),
@@ -150,7 +167,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
       if (mode === "nw") {
         const nextX = clamp(origin.x + dx, 0, origin.x + origin.w - 8);
         const nextY = clamp(origin.y + dy, 0, origin.y + origin.h - 8);
-        apply({
+        commit({
           x: nextX,
           y: nextY,
           w: clamp(origin.w - (nextX - origin.x), 8, 100),
@@ -158,7 +175,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
         });
         return;
       }
-      apply({
+      commit({
         x: clamp(origin.x + dx, 0, 100 - origin.w),
         y: clamp(origin.y + dy, 0, hasHeight ? 100 - origin.h : 90),
         w: origin.w,
@@ -170,6 +187,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       setDragging(false);
+      setGuides({ v: [], h: [] });
       if (moved) {
         suppressClick.current = true;
         onChange((currentPage) => currentPage, "جابه‌جایی");
@@ -202,7 +220,23 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
     }), history);
   }
 
-  function Handles({ item, apply, box }: { item: Box; apply: (next: Box) => void; box?: boolean }) {
+  function measureRect(current: Box, id?: string): GuideRect {
+    if (current.h != null) return { x: current.x, y: current.y, w: current.w, h: current.h };
+    const pageBox = root.current?.getBoundingClientRect();
+    const node = id ? (root.current?.querySelector(`[data-el="${id}"]`) as HTMLElement | null) : null;
+    if (!pageBox || !node) return { x: current.x, y: current.y, w: current.w, h: 8 };
+    return { x: current.x, y: current.y, w: current.w, h: (node.getBoundingClientRect().height / pageBox.height) * 100 };
+  }
+
+  function siblingRects(skipId?: string): GuideRect[] {
+    return [
+      ...page.texts.filter((item) => item.id !== skipId).map((item) => measureRect(item, item.id)),
+      ...page.slots.filter((item) => item.id !== skipId).map((item) => ({ x: item.x, y: item.y, w: item.w, h: item.h })),
+      ...page.decors.filter((item) => item.id !== skipId).map((item) => ({ x: item.x, y: item.y, w: item.w, h: item.h })),
+    ];
+  }
+
+  function Handles({ id, item, apply, box }: { id: string; item: Box; apply: (next: Box) => void; box?: boolean }) {
     const keys = box ? ["nw", "n", "ne", "e", "se", "s", "sw", "w"] : ["left", "right"];
     return (
       <>
@@ -213,7 +247,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
               key={key}
               data-handle={key}
               className={`ed-handle ${key}`}
-              onPointerDown={(event) => startDrag(event, item, apply, mode, undefined, { keepMenu: true })}
+              onPointerDown={(event) => startDrag(event, item, apply, mode, undefined, { keepMenu: true, id })}
             />
           );
         })}
@@ -239,6 +273,12 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
         onFocus(null);
       }}
     >
+      {guides.v.map((value) => (
+        <i key={`v-${value}`} className="ed-guide v" style={{ left: `${value}%` }} />
+      ))}
+      {guides.h.map((value) => (
+        <i key={`h-${value}`} className="ed-guide h" style={{ top: `${value}%` }} />
+      ))}
       {pickLabel ? (
         <button type="button" className="ed-pick" onClick={(event) => { event.stopPropagation(); onPick?.(); }}>
           {pickLabel}
@@ -250,6 +290,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
         return (
           <div
             key={item.id}
+            data-el={item.id}
             className={`ed-node ed-text${active ? " on" : ""}${editing ? " editing" : ""}`}
             style={{
               left: `${item.x}%`,
@@ -282,7 +323,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
                 onSelectPage();
                 onFocus({ type: "text", id: item.id });
                 if (already) setEditingId(item.id);
-              });
+              }, { id: item.id });
             }}
             onDoubleClick={(event) => {
               event.stopPropagation();
@@ -305,7 +346,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
             </div>
             {active ? (
               <>
-                <Handles item={item} apply={(next) => patchText(item.id, { x: next.x, y: next.y, w: next.w })} />
+                <Handles id={item.id} item={item} apply={(next) => patchText(item.id, { x: next.x, y: next.y, w: next.w })} />
                 <TextToolbar
                   text={item}
                   onChange={(patch) => patchText(item.id, patch, "قالب‌بندی متن")}
@@ -339,8 +380,17 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
         return (
           <div
             key={slot.id}
+            data-el={slot.id}
             className={`ed-node ed-photo${active ? " on" : ""}${slot.border ? " framed" : ""}`}
-            style={{ left: `${slot.x}%`, top: `${slot.y}%`, width: `${slot.w}%`, height: `${slot.h}%`, zIndex: slot.z + (active ? 40 : 0) }}
+            style={{
+              left: `${slot.x}%`,
+              top: `${slot.y}%`,
+              width: `${slot.w}%`,
+              height: `${slot.h}%`,
+              zIndex: slot.z + (active ? 40 : 0),
+              boxShadow: slot.border ? `0 0 0 ${slot.borderWidth || 5}px #fff` : undefined,
+              outlineOffset: slot.border ? `${(slot.borderWidth || 5) + 3}px` : undefined,
+            }}
             onClick={(event) => {
               event.stopPropagation();
               if (suppressClick.current) {
@@ -357,7 +407,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
                 if (moved) return;
                 onSelectPage();
                 onFocus({ type: "slot", id: slot.id });
-              });
+              }, { id: slot.id });
             }}
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
@@ -390,7 +440,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
             </div>
             {active ? (
               <>
-                <Handles box item={slot} apply={(next) => patchSlot(slot.id, { x: next.x, y: next.y, w: next.w, h: next.h })} />
+                <Handles id={slot.id} box item={slot} apply={(next) => patchSlot(slot.id, { x: next.x, y: next.y, w: next.w, h: next.h })} />
                 <ImageToolbar
                   slot={slot}
                   onChange={(patch) => patchSlot(slot.id, patch, "ویرایش عکس")}
@@ -413,6 +463,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
         return (
           <div
             key={item.id}
+            data-el={item.id}
             className={`ed-node ed-shape ${item.kind}${active ? " on" : ""}`}
             style={{
               left: `${item.x}%`,
@@ -436,7 +487,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
                 if (moved) return;
                 onSelectPage();
                 onFocus({ type: "decor", id: item.id });
-              });
+              }, { id: item.id });
             }}
           >
             <div
@@ -452,7 +503,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
             </div>
             {active ? (
               <>
-                <Handles box item={item} apply={(next) => patchDecor(item.id, { x: next.x, y: next.y, w: next.w, h: next.h })} />
+                <Handles id={item.id} box item={item} apply={(next) => patchDecor(item.id, { x: next.x, y: next.y, w: next.w, h: next.h })} />
                 <ShapeToolbar
                   shape={item}
                   onChange={(patch) => patchDecor(item.id, patch, "ویرایش شکل")}

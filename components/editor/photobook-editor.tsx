@@ -20,6 +20,7 @@ import {
   Square,
   BookOpen,
   Undo2,
+  X,
 } from "lucide-react";
 import { getTemplateById } from "@/data/catalog";
 import { PHOTO_LAYOUTS } from "@/lib/photo-layouts";
@@ -38,13 +39,14 @@ import {
   normalizeSpreads,
   relabelSpreads,
   saveBookProject,
+  spinePage,
   styleFromText,
   uid,
   type BookPage,
   type Spread,
   type TextBlock,
 } from "@/lib/editor-book";
-import { appendPhotos, filesToPhotos, loadPhotos, type ProjectPhoto } from "@/lib/photos";
+import { appendPhotos, filesToPhotos, loadPhotos, savePhotos, type ProjectPhoto } from "@/lib/photos";
 
 const TABS = [
   { id: "images", label: "تصاویر", icon: Images },
@@ -130,7 +132,6 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
   const isCover = spread?.pages[0]?.kind === "cover-front";
   const leftPage = spread?.pages[0];
   const rightPage = spread?.pages[1];
-  const spineText = spread?.spineText ?? `${leftPage?.texts.find((item) => item.role === "title")?.text ?? template?.title ?? "لحظه‌ها"} — لحظه‌ها —`;
   const price = template?.price ?? "۱٬۴۹۰٬۰۰۰";
 
   function PageToolbar({ side }: { side: 0 | 1 }) {
@@ -244,6 +245,23 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
     setHoldingPhoto(null);
   }
 
+  function removeLibraryPhoto(photoId: string) {
+    const nextPhotos = photos.filter((item) => item.id !== photoId);
+    setPhotos(nextPhotos);
+    savePhotos(projectId, nextPhotos);
+    saveDraft({ photoCount: nextPhotos.length });
+    if (holdingPhoto === photoId) setHoldingPhoto(null);
+    const used = spreads.some((item) => item.pages.some((page) => page.slots.some((slot) => slot.photoId === photoId)));
+    if (!used) return;
+    commit("حذف عکس", spreads.map((item) => ({
+      ...item,
+      pages: item.pages.map((page) => ({
+        ...page,
+        slots: page.slots.map((slot) => (slot.photoId === photoId ? { ...slot, photoId: null } : slot)),
+      })),
+    })));
+  }
+
   async function replaceSlotPhoto(side: 0 | 1, slotId: string, files: FileList) {
     const incoming = await filesToPhotos(files);
     if (!incoming[0]) return;
@@ -306,6 +324,7 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
           ...item,
           texts: item.texts.map((text) => ({ ...text, ...style })),
         })) as Spread["pages"],
+        spineTexts: spread.spineTexts?.map((text) => ({ ...text, ...style })),
       }));
       setPast((pastState) => [...pastState.slice(-30), { label: "اعمال روی همه", spreads: cloneSpreads(current), index: spreadIndex }]);
       setFuture([]);
@@ -342,12 +361,16 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
     return side === 0 ? "کلیک کن تا روی صفحهٔ راست اعمال شود" : "کلیک کن تا روی صفحهٔ چپ اعمال شود";
   }
 
-  function saveSpine(text: string) {
+  function changeSpine(updater: (page: BookPage) => BookPage, history?: string) {
     setSpreads((current) => {
       const next = cloneSpreads(current);
-      next[spreadIndex] = { ...next[spreadIndex], spineText: text };
-      setPast((pastState) => [...pastState.slice(-30), { label: "ویرایش عطف", spreads: cloneSpreads(current), index: spreadIndex }]);
-      setFuture([]);
+      const currentSpread = next[spreadIndex];
+      const updated = updater(spinePage(currentSpread.spineTexts ?? []));
+      next[spreadIndex] = { ...currentSpread, spineTexts: updated.texts };
+      if (history) {
+        setPast((pastState) => [...pastState.slice(-30), { label: history, spreads: cloneSpreads(current), index: spreadIndex }]);
+        setFuture([]);
+      }
       saveBookProject({ projectId, templateId: template?.id ?? null, spreads: next });
       return next;
     });
@@ -483,15 +506,19 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
                     />
                     {isCover ? (
                       <div className="ed-spine-col">
-                        <div
-                          className="ed-spine-edit"
-                          contentEditable
-                          suppressContentEditableWarning
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onBlur={(event) => saveSpine(event.currentTarget.textContent ?? "")}
-                        >
-                          {spineText}
-                        </div>
+                        <PageCanvas
+                          page={spinePage(spread.spineTexts ?? [])}
+                          photos={photos}
+                          selected={false}
+                          focus={focus}
+                          holding={null}
+                          onSelectPage={() => {}}
+                          onFocus={setFocus}
+                          onChange={changeSpine}
+                          onApplyAll={applyTextToAll}
+                          onPlace={() => {}}
+                          onReplace={() => {}}
+                        />
                       </div>
                     ) : (
                       <div className="ed-gutter" aria-hidden="true" />
@@ -563,17 +590,28 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
                 {photos.length > 0 ? (
                   <div className="ed-lib">
                     {photos.map((photo) => (
-                      <button
-                        key={photo.id}
-                        type="button"
-                        className={holdingPhoto === photo.id ? "holding" : ""}
-                        onClick={() => setHoldingPhoto(photo.id === holdingPhoto ? null : photo.id)}
-                        draggable
-                        onDragStart={(event) => event.dataTransfer.setData("text/photo-id", photo.id)}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.dataUrl} alt={photo.name} />
-                      </button>
+                      <div key={photo.id} className={`ed-lib-item${holdingPhoto === photo.id ? " holding" : ""}`}>
+                        <button
+                          type="button"
+                          onClick={() => setHoldingPhoto(photo.id === holdingPhoto ? null : photo.id)}
+                          draggable
+                          onDragStart={(event) => event.dataTransfer.setData("text/photo-id", photo.id)}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={photo.dataUrl} alt={photo.name} />
+                        </button>
+                        <button
+                          type="button"
+                          className="ed-lib-x"
+                          aria-label="حذف عکس"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            removeLibraryPhoto(photo.id);
+                          }}
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 ) : null}
@@ -640,10 +678,23 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
                 {photos.length === 0 ? <p className="ed-hint">هنوز عکسی اضافه نشده.</p> : null}
                 <div className="ed-lib">
                   {photos.map((photo) => (
-                    <button key={photo.id} type="button" onClick={() => setHoldingPhoto(photo.id)}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={photo.dataUrl} alt={photo.name} />
-                    </button>
+                    <div key={photo.id} className={`ed-lib-item${holdingPhoto === photo.id ? " holding" : ""}`}>
+                      <button type="button" onClick={() => setHoldingPhoto(photo.id)}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={photo.dataUrl} alt={photo.name} />
+                      </button>
+                      <button
+                        type="button"
+                        className="ed-lib-x"
+                        aria-label="حذف عکس"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          removeLibraryPhoto(photo.id);
+                        }}
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </>

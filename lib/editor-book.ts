@@ -5,7 +5,7 @@ import type { ProjectPhoto } from "@/lib/photos";
 export type PageLayout = string;
 
 export type TextAlign = "right" | "center" | "left" | "justify";
-export type TextRole = "kicker" | "title" | "year" | "note" | "body";
+export type TextRole = "kicker" | "title" | "year" | "note" | "body" | "spine";
 
 export type TextBlock = {
   id: string;
@@ -40,6 +40,7 @@ export type PhotoSlot = {
   flipX: boolean;
   opacity: number;
   border: boolean;
+  borderWidth: number;
   filter: PhotoFilter;
 };
 
@@ -96,11 +97,28 @@ function textDefaults(role: TextRole, kind: BookPage["kind"], index = 0): Omit<T
   if (role === "title") return { ...base, x: 8, y: 64, w: 84, fontSize: 34, italic: true, fontFamily: '"Instrument Serif", Georgia, serif' };
   if (role === "year") return { ...base, x: 8, y: 76, w: 84, fontSize: 86, bold: true, fontFamily: '"Instrument Serif", Georgia, serif' };
   if (role === "note") return { ...base, x: 12, y: 62, w: 76, fontSize: 13 };
+  if (role === "spine") return { ...base, x: 12, y: index === 0 ? 8 : 70, w: 76, fontSize: index === 0 ? 13 : 11, color: "#ffffff" };
   return { ...base, x: 14, y: 36 + index * 10, w: 72, fontSize: 16 };
 }
 
 export function createText(role: TextRole, text: string, kind: BookPage["kind"] = "inner", index = 0): TextBlock {
   return { id: uid("tx"), role, text, ...textDefaults(role, kind, index) };
+}
+
+export function createSpineTexts(title: string): TextBlock[] {
+  return [createText("spine", title, "cover-front", 0), createText("spine", "۱۴۰۵", "cover-front", 1)];
+}
+
+export function spinePage(texts: TextBlock[], background = "transparent"): BookPage {
+  return {
+    id: "spine",
+    kind: "cover-front",
+    background,
+    layout: "blank",
+    slots: [],
+    texts,
+    decors: [],
+  };
 }
 
 const PHOTO_STYLE = {
@@ -109,6 +127,7 @@ const PHOTO_STYLE = {
   flipX: false,
   opacity: 100,
   border: false,
+  borderWidth: 5,
   filter: "none" as PhotoFilter,
 };
 
@@ -169,10 +188,16 @@ export function normalizePage(item: BookPage): BookPage {
 }
 
 export function normalizeSpreads(spreads: Spread[]): Spread[] {
-  return spreads.map((spread) => ({
-    ...spread,
-    pages: spread.pages.map(normalizePage) as Spread["pages"],
-  }));
+  return spreads.map((spread) => {
+    const pages = spread.pages.map(normalizePage) as Spread["pages"];
+    const isCover = pages[0]?.kind === "cover-front";
+    let spineTexts = (spread.spineTexts ?? []).map((text, index) => normalizeText({ ...text, role: text.role ?? "spine" }, "cover-front", index));
+    if (isCover && spineTexts.length === 0) {
+      const title = pages[0].texts.find((item) => item.role === "title")?.text ?? spread.spineText ?? "لحظه‌ها";
+      spineTexts = spread.spineText ? [createText("spine", spread.spineText, "cover-front", 0)] : createSpineTexts(title);
+    }
+    return { ...spread, pages, spineTexts };
+  });
 }
 
 export type BookPage = {
@@ -190,6 +215,7 @@ export type Spread = {
   label: string;
   pages: [BookPage, BookPage];
   spineText?: string;
+  spineTexts?: TextBlock[];
 };
 
 export type BookProject = {
@@ -262,7 +288,7 @@ export function createDefaultBook(template?: TemplateItem | null): Spread[] {
   });
 
   return [
-    { id: uid("spread"), label: "جلد", pages: [coverFront, coverBack], spineText: `${title} — لحظه‌ها —` },
+    { id: uid("spread"), label: "جلد", pages: [coverFront, coverBack], spineTexts: createSpineTexts(title) },
     inner("۱–۲", "grid-2", "hero"),
     inner("۳–۴", "grid-4", "note"),
     inner("۵–۶", "hero", "grid-2"),

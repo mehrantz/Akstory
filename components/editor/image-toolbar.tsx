@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftRight,
-  BringToFront,
   ImagePlus,
   Layers,
   Maximize2,
@@ -62,8 +61,8 @@ export function ImageToolbar({ slot, onChange, onReplace, onDelete }: Props) {
       </button>
 
       <div className="ed-tb-group">
-        <button type="button" onClick={() => setOpen(open === "order" ? null : "order")} aria-label="ترتیب">
-          <BringToFront size={15} />
+        <button type="button" onClick={() => setOpen(open === "order" ? null : "order")} aria-label="چیدمان">
+          <Layers size={15} />
         </button>
         {open === "order" ? (
           <div className="ed-tb-menu">
@@ -111,9 +110,14 @@ export function ImageToolbar({ slot, onChange, onReplace, onDelete }: Props) {
         <button type="button" onClick={() => onChange({ zoom: Math.min(260, slot.zoom + 10) })}>+</button>
       </div>
 
-      <button type="button" className={slot.border ? "on" : ""} onClick={() => onChange({ border: !slot.border })} aria-label="حاشیه">
+      <button type="button" className={slot.border ? "on" : ""} onClick={() => onChange({ border: !slot.border, borderWidth: slot.borderWidth || 5 })} aria-label="حاشیه">
         <Square size={15} />
       </button>
+      <div className="ed-tb-step">
+        <button type="button" onClick={() => onChange({ border: true, borderWidth: Math.max(1, (slot.borderWidth || 5) - 1) })} aria-label="نازک‌تر">−</button>
+        <span>{slot.borderWidth || 5}</span>
+        <button type="button" onClick={() => onChange({ border: true, borderWidth: Math.min(24, (slot.borderWidth || 5) + 1) })} aria-label="ضخیم‌تر">+</button>
+      </div>
 
       <div className="ed-tb-group">
         <button type="button" onClick={() => setOpen(open === "filter" ? null : "filter")} aria-label="افکت">
