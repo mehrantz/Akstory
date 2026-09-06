@@ -7,6 +7,15 @@ import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { sliderProducts, type SliderProduct } from "@/data/catalog";
 
 function BookVisual({ item }: { item: SliderProduct }) {
+  if (item.visual === "mockup" && item.image) {
+    return (
+      <div className="slide-visual mockup" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={item.image} alt={item.title} className="slide-mockup-image" />
+      </div>
+    );
+  }
+
   if (item.visual === "open") {
     return (
       <div className="slide-visual open" aria-hidden="true">
