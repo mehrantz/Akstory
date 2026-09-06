@@ -17,6 +17,10 @@ export type TemplateItem = {
   accent: string;
   price: string;
   featured?: boolean;
+  image?: string;
+  series?: string;
+  reviews?: number;
+  badge?: string;
 };
 
 export type BookProduct = {
@@ -49,6 +53,10 @@ export const templates: TemplateItem[] = [
     accent: "#f0c86e",
     price: "۱٬۴۹۰٬۰۰۰",
     featured: true,
+    image: "/images/shop/travel-series.png",
+    series: "سری سفر",
+    reviews: 32,
+    badge: "محبوب",
   },
   {
     id: "our-story",
@@ -61,6 +69,9 @@ export const templates: TemplateItem[] = [
     accent: "#7f9b8f",
     price: "۱٬۶۹۰٬۰۰۰",
     featured: true,
+    image: "/images/shop/romance-series.png",
+    series: "سری عاشقانه",
+    reviews: 24,
   },
   {
     id: "first-year",
@@ -73,6 +84,10 @@ export const templates: TemplateItem[] = [
     accent: "#8ca7a2",
     price: "۱٬۵۹۰٬۰۰۰",
     featured: true,
+    image: "/images/shop/baby-series.png",
+    series: "سری کودک",
+    reviews: 42,
+    badge: "پرفروش",
   },
   {
     id: "family-table",
@@ -85,6 +100,9 @@ export const templates: TemplateItem[] = [
     accent: "#c96752",
     price: "۱٬۵۴۰٬۰۰۰",
     featured: true,
+    image: "/images/shop/family-series.png",
+    series: "سری خانواده",
+    reviews: 28,
   },
   {
     id: "travel-premium",
@@ -96,8 +114,44 @@ export const templates: TemplateItem[] = [
     color: "#7fa7a3",
     accent: "#e8c978",
     price: "۲٬۱۹۰٬۰۰۰",
+    image: "/images/shop/travel-series.png",
+    series: "سری سفر پریمیوم",
+    reviews: 18,
+  },
+  {
+    id: "celebration",
+    title: "جشنِ به‌یادماندنی",
+    subtitle: "تولدها و شب‌هایی که تکرار نمی‌شوند",
+    category: "جشن",
+    style: "Celebration",
+    usage: "تولد و دورهمی",
+    color: "#174b87",
+    accent: "#eb8f91",
+    price: "۱٬۶۴۰٬۰۰۰",
+    image: "/images/shop/celebration-series.png",
+    series: "سری جشن",
+    reviews: 16,
+    badge: "جدید",
+  },
+  {
+    id: "everyday-journal",
+    title: "روزهای معمولی",
+    subtitle: "خاطره‌های کوچک از جریان زندگی",
+    category: "روزمره",
+    style: "Everyday Journal",
+    usage: "لحظه‌های روزمره",
+    color: "#e9dfd1",
+    accent: "#3f3a35",
+    price: "۱٬۴۹۰٬۰۰۰",
+    image: "/images/shop/everyday-series.png",
+    series: "سری روزمره",
+    reviews: 12,
   },
 ];
+
+const shopTemplateIds = ["travel-minimal", "our-story", "first-year", "family-table", "celebration", "everyday-journal"];
+
+export const shopTemplates = shopTemplateIds.map((id) => templates.find((template) => template.id === id)!);
 
 export const bookProducts: BookProduct[] = [
   {
