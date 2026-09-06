@@ -62,6 +62,9 @@ export type Decor = {
 export const TEXT_FONTS = [
   { id: '"Instrument Serif", Georgia, serif', label: "اینسترومنت" },
   { id: "Peyda", label: "پیدا" },
+  { id: "Sarbaz", label: "سرباز" },
+  { id: "Pinar", label: "پینار" },
+  { id: "Potk", label: "پوتک" },
   { id: "Georgia, serif", label: "سریف" },
   { id: '"Times New Roman", Times, serif', label: "تایمز" },
   { id: "Arial, sans-serif", label: "آریال" },

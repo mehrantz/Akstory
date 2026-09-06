@@ -45,6 +45,10 @@ function photoById(photos: ProjectPhoto[], id: string | null) {
   return photos.find((item) => item.id === id) ?? null;
 }
 
+function isStickerImage(value: string) {
+  return value.startsWith("/") || value.startsWith("http") || /\.(png|jpe?g|webp|gif|svg)$/i.test(value);
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -499,7 +503,14 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
                 borderRadius: radius,
               }}
             >
-              {item.kind === "sticker" ? item.value : null}
+              {item.kind === "sticker" ? (
+                isStickerImage(item.value) ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={item.value} alt="" />
+                ) : (
+                  item.value
+                )
+              ) : null}
             </div>
             {active ? (
               <>

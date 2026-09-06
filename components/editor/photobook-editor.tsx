@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Cloud,
   Eye,
   History,
   ImagePlus,
@@ -19,6 +18,7 @@ import {
   Circle,
   Square,
   BookOpen,
+  Sticker,
   Undo2,
   X,
 } from "lucide-react";
@@ -27,6 +27,7 @@ import { PHOTO_LAYOUTS } from "@/lib/photo-layouts";
 import { loadDraft, saveDraft } from "@/lib/draft";
 import { PageCanvas, type FocusTarget } from "@/components/editor/page-canvas";
 import { PageTray } from "@/components/editor/page-tray";
+import { TemplateCoverPreview } from "@/components/editor/template-cover-preview";
 import {
   applyLayout,
   createDecor,
@@ -47,13 +48,21 @@ import {
   type TextBlock,
 } from "@/lib/editor-book";
 import { appendPhotos, filesToPhotos, loadPhotos, savePhotos, type ProjectPhoto } from "@/lib/photos";
+import { STICKER_CATEGORIES, stickersByCategory, type StickerCategory } from "@/lib/stickers";
+import {
+  cloneCoverSpread,
+  deleteSavedCoverTemplate,
+  loadSavedCoverTemplates,
+  saveCoverTemplate,
+  type SavedCoverTemplate,
+} from "@/lib/saved-templates";
 
 const TABS = [
   { id: "images", label: "تصاویر", icon: Images },
   { id: "templates", label: "قالب", icon: BookOpen },
   { id: "layouts", label: "چیدمان", icon: LayoutGrid },
   { id: "backgrounds", label: "پس‌زمینه", icon: Mountain },
-  { id: "cloud", label: "عکس‌های من", icon: Cloud },
+  { id: "stickers", label: "استیکر", icon: Sticker },
 ] as const;
 
 const BACKGROUNDS = [
@@ -113,6 +122,9 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
   const [zoom, setZoom] = useState(70);
   const [pendingLayout, setPendingLayout] = useState<string | null>(null);
   const [focus, setFocus] = useState<FocusTarget | null>(null);
+  const [stickerCategory, setStickerCategory] = useState<StickerCategory>("iran");
+  const [savedTemplates, setSavedTemplates] = useState<SavedCoverTemplate[]>([]);
+  const [templateSaved, setTemplateSaved] = useState(false);
   const [past, setPast] = useState<Snapshot[]>([]);
   const [future, setFuture] = useState<Snapshot[]>([]);
 
@@ -127,6 +139,10 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
     const book = createDefaultBook(template);
     setSpreads(storedPhotos.length ? fillEmptySlots(book, storedPhotos) : book);
   }, [projectId, template]);
+
+  useEffect(() => {
+    setSavedTemplates(loadSavedCoverTemplates());
+  }, []);
 
   const spread = spreads[spreadIndex] ?? spreads[0];
   const isCover = spread?.pages[0]?.kind === "cover-front";
@@ -315,6 +331,18 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
     setFocus({ type: "decor", id: decor.id });
   }
 
+  function addStickerImage(src: string, side?: 0 | 1) {
+    const sideIndex = targetSide(side);
+    const currentPage = spreads[spreadIndex]?.pages[sideIndex];
+    const decor = { ...createDecor("sticker", currentPage?.decors.length ?? 0), value: src, w: 18, h: 18 };
+    updatePage(sideIndex, (page) => ({
+      ...page,
+      decors: [...page.decors, decor],
+    }), "افزودن استیکر");
+    setSelectedPage(sideIndex);
+    setFocus({ type: "decor", id: decor.id });
+  }
+
   function applyTextToAll(source: TextBlock) {
     const style = styleFromText(source);
     setSpreads((current) => {
@@ -401,6 +429,36 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
     commit("حذف صفحه", next, Math.max(0, spreadIndex - 1));
   }
 
+  function saveCurrentCoverTemplate() {
+    const cover = spreads[0];
+    if (!cover || cover.pages[0]?.kind !== "cover-front") return;
+    saveCoverTemplate(cover, photos);
+    setSavedTemplates(loadSavedCoverTemplates());
+    setTemplateSaved(true);
+    setTab("templates");
+    window.setTimeout(() => setTemplateSaved(false), 1800);
+  }
+
+  function applyCoverTemplate(item: SavedCoverTemplate) {
+    const cover = cloneCoverSpread(item.spread);
+    const next = relabelSpreads([cover, ...spreads.slice(1)]);
+    const existingIds = new Set(photos.map((photo) => photo.id));
+    const incoming = item.photos.filter((photo) => !existingIds.has(photo.id));
+    if (incoming.length) {
+      const merged = [...photos, ...incoming];
+      setPhotos(merged);
+      savePhotos(projectId, merged);
+    }
+    commit("اعمال قالب جلد", next, 0);
+    setFocus(null);
+    setPendingLayout(null);
+  }
+
+  function removeSavedTemplate(id: string) {
+    deleteSavedCoverTemplate(id);
+    setSavedTemplates(loadSavedCoverTemplates());
+  }
+
   if (!spread || !leftPage || !rightPage) {
     return <main className="ed-shell" />;
   }
@@ -447,6 +505,10 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
         </button>
 
         <div className="ed-top-end">
+          <button type="button" className="ed-template-save" onClick={saveCurrentCoverTemplate}>
+            <BookOpen size={16} />
+            <span>{templateSaved ? "قالب ذخیره شد" : "ذخیره قالب (موقت)"}</span>
+          </button>
           <button type="button" onClick={() => persist()} aria-label="ذخیره">
             <Save size={18} />
             <span>{saved ? "ذخیره شد" : "ذخیره"}</span>
@@ -573,10 +635,6 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
                   <Smartphone size={18} />
                   افزودن از موبایل
                 </button>
-                <button className="ed-source" type="button" onClick={() => setTab("cloud")}>
-                  <Cloud size={18} />
-                  استفاده‌شده‌های قبلی
-                </button>
                 <div
                   className="ed-drop"
                   onDragOver={(event) => event.preventDefault()}
@@ -672,27 +730,73 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
               </>
             ) : null}
 
-            {tab === "cloud" ? (
+            {tab === "templates" ? (
               <>
-                <h3>عکس‌های همین پروژه</h3>
-                {photos.length === 0 ? <p className="ed-hint">هنوز عکسی اضافه نشده.</p> : null}
-                <div className="ed-lib">
-                  {photos.map((photo) => (
-                    <div key={photo.id} className={`ed-lib-item${holdingPhoto === photo.id ? " holding" : ""}`}>
-                      <button type="button" onClick={() => setHoldingPhoto(photo.id)}>
+                <div className="ed-lay-head">
+                  <span>قالب</span>
+                  <b>قالب‌های ذخیره‌شده</b>
+                </div>
+                <p className="ed-hint">روی قالب کلیک کن تا جلد کتاب با همان طراحی جایگزین شود.</p>
+                {savedTemplates.length === 0 ? (
+                  <p className="ed-hint">هنوز قالبی نیست. جلد را بساز و از دکمه «ذخیره قالب (موقت)» بالای صفحه استفاده کن.</p>
+                ) : (
+                  <div className="ed-tpl-list">
+                    {savedTemplates.map((item) => (
+                      <div key={item.id} className="ed-tpl-card">
+                        <button type="button" className="ed-tpl-body" onClick={() => applyCoverTemplate(item)}>
+                          {item.previewImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img className="ed-tpl-cover" src={item.previewImage} alt={item.title} />
+                          ) : (
+                            <TemplateCoverPreview spread={item.spread} photos={item.photos} />
+                          )}
+                          <strong>{item.title}</strong>
+                        </button>
+                        <button
+                          type="button"
+                          className="ed-tpl-x"
+                          aria-label="حذف قالب"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            removeSavedTemplate(item.id);
+                          }}
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : null}
+
+            {tab === "stickers" ? (
+              <>
+                <div className="ed-lay-head">
+                  <span>استیکر</span>
+                  <b>انتخاب استیکر</b>
+                </div>
+                <p className="ed-hint">روی استیکر کلیک کن تا روی صفحهٔ انتخاب‌شده اضافه شود.</p>
+                <div className="ed-sticker-cats" role="tablist" aria-label="دسته‌بندی استیکر">
+                  {STICKER_CATEGORIES.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={stickerCategory === category.id}
+                      className={stickerCategory === category.id ? "on" : ""}
+                      onClick={() => setStickerCategory(category.id)}
+                    >
+                      {category.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="ed-lib ed-sticker-grid">
+                  {stickersByCategory(stickerCategory).map((sticker) => (
+                    <div key={sticker.id} className="ed-lib-item">
+                      <button type="button" onClick={() => addStickerImage(sticker.src)} aria-label={sticker.id}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.dataUrl} alt={photo.name} />
-                      </button>
-                      <button
-                        type="button"
-                        className="ed-lib-x"
-                        aria-label="حذف عکس"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          removeLibraryPhoto(photo.id);
-                        }}
-                      >
-                        <X size={11} />
+                        <img src={sticker.src} alt="" loading="lazy" />
                       </button>
                     </div>
                   ))}
