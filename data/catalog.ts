@@ -153,6 +153,10 @@ const shopTemplateIds = ["travel-minimal", "our-story", "first-year", "family-ta
 
 export const shopTemplates = shopTemplateIds.map((id) => templates.find((template) => template.id === id)!);
 
+export function getTemplateById(id: string) {
+  return templates.find((template) => template.id === id);
+}
+
 export const bookProducts: BookProduct[] = [
   {
     id: "classic",

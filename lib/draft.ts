@@ -5,6 +5,7 @@ export type CreateDraft = {
   templateId: string | null;
   projectId: string | null;
   photoCount: number;
+  createMode: "smart" | "manual" | null;
   updatedAt: string;
 };
 
@@ -17,6 +18,7 @@ export const emptyDraft = (): CreateDraft => ({
   templateId: null,
   projectId: null,
   photoCount: 0,
+  createMode: null,
   updatedAt: new Date().toISOString(),
 });
 
