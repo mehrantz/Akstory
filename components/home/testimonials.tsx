@@ -6,7 +6,7 @@ export function HomeTestimonials() {
     <section className="reviews-board" id="reviews">
       <div className="reviews-head">
         <span>نظر خریدارها</span>
-        <h2>ساختهٔ تو، دوست‌داشتهٔ ما</h2>
+        <h2>تو عکس بگیر، ما خاطره ثبت میکنیم</h2>
         <p>امتیاز ۴.۸ از ۵ — بر اساس بازخورد نسخه نمایشی</p>
       </div>
       <div className="reviews-grid">

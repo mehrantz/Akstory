@@ -66,26 +66,13 @@ const TABS = [
 ] as const;
 
 const BACKGROUNDS = [
-  "#3ec6c9",
-  "#5a6b54",
-  "#6a9a96",
-  "#8a7a54",
-  "#e6d7be",
-  "#d7e6e2",
-  "#c3ddd3",
-  "#c8dcb8",
-  "#c5d25a",
-  "#d4d88c",
-  "#7db8b4",
-  "#a9b39a",
-  "#d9a7a1",
-  "#e8c978",
-  "#f4efe8",
-  "#efdcd6",
-  "#c45c48",
-  "#174b87",
-  "#5c6d7a",
-  "#2c2c2c",
+  "#E2D3B9",
+  "#C1DFD4",
+  "#8CB9B3",
+  "#DCB7AB",
+  "#C7D8E2",
+  "#E8C978",
+  "#9AD8D4",
 ];
 const TEXT_STYLES = [
   { role: "kicker" as const, label: "عنوان کوچک", sample: "لحظه‌ها" },
@@ -141,7 +128,7 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
   }, [projectId, template]);
 
   useEffect(() => {
-    setSavedTemplates(loadSavedCoverTemplates());
+    loadSavedCoverTemplates().then(setSavedTemplates);
   }, []);
 
   const spread = spreads[spreadIndex] ?? spreads[0];
@@ -429,11 +416,11 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
     commit("حذف صفحه", next, Math.max(0, spreadIndex - 1));
   }
 
-  function saveCurrentCoverTemplate() {
+  async function saveCurrentCoverTemplate() {
     const cover = spreads[0];
     if (!cover || cover.pages[0]?.kind !== "cover-front") return;
-    saveCoverTemplate(cover, photos);
-    setSavedTemplates(loadSavedCoverTemplates());
+    const next = await saveCoverTemplate(cover, photos);
+    setSavedTemplates(next);
     setTemplateSaved(true);
     setTab("templates");
     window.setTimeout(() => setTemplateSaved(false), 1800);
@@ -454,9 +441,9 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
     setPendingLayout(null);
   }
 
-  function removeSavedTemplate(id: string) {
-    deleteSavedCoverTemplate(id);
-    setSavedTemplates(loadSavedCoverTemplates());
+  async function removeSavedTemplate(id: string) {
+    const next = await deleteSavedCoverTemplate(id);
+    setSavedTemplates(next);
   }
 
   if (!spread || !leftPage || !rightPage) {
@@ -507,7 +494,7 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
         <div className="ed-top-end">
           <button type="button" className="ed-template-save" onClick={saveCurrentCoverTemplate}>
             <BookOpen size={16} />
-            <span>{templateSaved ? "قالب ذخیره شد" : "ذخیره قالب (موقت)"}</span>
+            <span>{templateSaved ? "قالب ذخیره شد" : "ذخیره قالب"}</span>
           </button>
           <button type="button" onClick={() => persist()} aria-label="ذخیره">
             <Save size={18} />
@@ -738,7 +725,7 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
                 </div>
                 <p className="ed-hint">روی قالب کلیک کن تا جلد کتاب با همان طراحی جایگزین شود.</p>
                 {savedTemplates.length === 0 ? (
-                  <p className="ed-hint">هنوز قالبی نیست. جلد را بساز و از دکمه «ذخیره قالب (موقت)» بالای صفحه استفاده کن.</p>
+                  <p className="ed-hint">هنوز قالبی نیست. جلد را بساز و از دکمه «ذخیره قالب» بالای صفحه استفاده کن.</p>
                 ) : (
                   <div className="ed-tpl-list">
                     {savedTemplates.map((item) => (

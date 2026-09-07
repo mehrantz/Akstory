@@ -21,6 +21,8 @@ const IRAN_STICKERS: StickerItem[] = [
   { id: "iran-hafezieh", src: "/sticker/iran/hafezieh.png", category: "iran" },
   { id: "iran-badgir", src: "/sticker/iran/badgir.png", category: "iran" },
   { id: "iran-azadi-tower", src: "/sticker/iran/azadi-tower.png", category: "iran" },
+  { id: "iran-khaju-bridge", src: "/sticker/iran/khaju-bridge.png", category: "iran" },
+  { id: "iran-kashan-house", src: "/sticker/iran/kashan-house.png", category: "iran" },
 ];
 
 export function stickerSrcFromId(id: string) {

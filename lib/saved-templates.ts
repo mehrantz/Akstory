@@ -11,66 +11,104 @@ export type SavedCoverTemplate = {
 };
 
 const STORAGE_KEY = "akstory.savedCoverTemplates";
+const DB_NAME = "akstory";
+const DB_STORE = "coverTemplates";
+const DB_RECORD = "all";
+
 export const SHIRAZ_TEMPLATE_PREVIEW = "/images/templates/shiraz-preview.png";
 export const YAZD_TEMPLATE_PREVIEW = "/images/templates/yazd-preview.png";
 
-function readAll(): SavedCoverTemplate[] {
+function normalizeList(items: SavedCoverTemplate[]) {
+  return items
+    .filter((item) => item?.id && item.spread)
+    .map((item) => ({
+      ...item,
+      spread: normalizeSpreads([item.spread])[0],
+      photos: Array.isArray(item.photos) ? item.photos : [],
+    }))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function readLocal(): SavedCoverTemplate[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as SavedCoverTemplate[];
-    return parsed
-      .filter((item) => !item.id.startsWith("builtin-"))
-      .map((item) => ({
-        ...item,
-        spread: normalizeSpreads([item.spread])[0],
-      }));
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function writeAll(items: SavedCoverTemplate[]) {
+function writeLocal(items: SavedCoverTemplate[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items.filter((item) => !item.id.startsWith("builtin-"))));
-}
-
-function sortTemplates(items: SavedCoverTemplate[]) {
-  const rank = (item: SavedCoverTemplate) => {
-    if (item.title === "شیراز") return 0;
-    if (item.title === "یزد") return 1;
-    return 2;
-  };
-
-  return [...items].sort((a, b) => {
-    const byRank = rank(a) - rank(b);
-    if (byRank !== 0) return byRank;
-    return b.createdAt.localeCompare(a.createdAt);
-  });
-}
-
-function migrateTemplates(items: SavedCoverTemplate[]) {
-  const ordered = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  let changed = ordered.length !== items.length;
-
-  const migrated = ordered.slice(0, 2).map((item, index) => {
-    if (index === 0) {
-      const next = { ...item, title: "شیراز", previewImage: SHIRAZ_TEMPLATE_PREVIEW };
-      if (item.title !== next.title || item.previewImage !== next.previewImage) changed = true;
-      return next;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(items.map((item) => ({ ...item, photos: item.photos.slice(0, 2) }))),
+      );
+    } catch {
+      // IndexedDB remains the source of truth when localStorage is full.
     }
-    const next = { ...item, title: "یزد", previewImage: YAZD_TEMPLATE_PREVIEW };
-    if (item.title !== next.title || item.previewImage !== next.previewImage) changed = true;
-    return next;
-  });
-
-  if (changed) writeAll(migrated);
-  return migrated;
+  }
 }
 
-export function loadSavedCoverTemplates() {
-  return sortTemplates(migrateTemplates(readAll()));
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readDb(): Promise<SavedCoverTemplate[] | null> {
+  if (typeof window === "undefined" || !window.indexedDB) return null;
+  try {
+    const db = await openDb();
+    return await new Promise((resolve, reject) => {
+      const request = db.transaction(DB_STORE, "readonly").objectStore(DB_STORE).get(DB_RECORD);
+      request.onsuccess = () => {
+        const value = request.result;
+        resolve(Array.isArray(value) ? (value as SavedCoverTemplate[]) : []);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function writeDb(items: SavedCoverTemplate[]) {
+  if (typeof window === "undefined" || !window.indexedDB) return;
+  const db = await openDb();
+  await new Promise<void>((resolve, reject) => {
+    const request = db.transaction(DB_STORE, "readwrite").objectStore(DB_STORE).put(items, DB_RECORD);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function persist(items: SavedCoverTemplate[]) {
+  const next = normalizeList(items);
+  await writeDb(next);
+  writeLocal(next);
+  return next;
+}
+
+export async function loadSavedCoverTemplates() {
+  const fromDb = await readDb();
+  if (fromDb && fromDb.length) return normalizeList(fromDb);
+  const fromLocal = normalizeList(readLocal());
+  if (fromLocal.length) await writeDb(fromLocal);
+  return fromLocal;
 }
 
 function coverTitle(spread: Spread) {
@@ -88,7 +126,7 @@ function photosForSpread(spread: Spread, photos: ProjectPhoto[]) {
   return photos.filter((photo) => ids.has(photo.id));
 }
 
-export function saveCoverTemplate(spread: Spread, photos: ProjectPhoto[]) {
+export async function saveCoverTemplate(spread: Spread, photos: ProjectPhoto[]) {
   const item: SavedCoverTemplate = {
     id: uid("tpl"),
     title: coverTitle(spread),
@@ -96,12 +134,13 @@ export function saveCoverTemplate(spread: Spread, photos: ProjectPhoto[]) {
     spread: JSON.parse(JSON.stringify(spread)) as Spread,
     photos: photosForSpread(spread, photos).map((photo) => ({ ...photo })),
   };
-  writeAll([item, ...readAll()].slice(0, 2));
-  return item;
+  const current = await loadSavedCoverTemplates();
+  return persist([item, ...current.filter((entry) => entry.id !== item.id)]);
 }
 
-export function deleteSavedCoverTemplate(id: string) {
-  writeAll(readAll().filter((item) => item.id !== id));
+export async function deleteSavedCoverTemplate(id: string) {
+  const current = await loadSavedCoverTemplates();
+  return persist(current.filter((item) => item.id !== id));
 }
 
 export function cloneCoverSpread(source: Spread): Spread {

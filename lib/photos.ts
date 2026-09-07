@@ -2,6 +2,8 @@ export type ProjectPhoto = {
   id: string;
   name: string;
   dataUrl: string;
+  lastModified?: number;
+  byteSize?: number;
 };
 
 function storageKey(projectId: string) {
@@ -46,6 +48,8 @@ export async function filesToPhotos(files: FileList | File[] | null): Promise<Pr
         id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 6)}`,
         name: file.name,
         dataUrl: await fileToDataUrl(file),
+        lastModified: file.lastModified,
+        byteSize: file.size,
       });
     } catch {
       // skip unreadable files

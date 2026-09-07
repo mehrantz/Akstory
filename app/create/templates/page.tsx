@@ -7,7 +7,7 @@ import { ArrowLeft, Star } from "lucide-react";
 import { AnnouncementBar, SiteFooter, SiteHeader } from "@/components/layout/site-chrome";
 import { shopTemplates } from "@/data/catalog";
 
-const categories = ["همه", "سفر", "داستان ما", "کودک", "خانواده", "جشن", "روزمره"];
+const categories = ["همه", ...Array.from(new Set(shopTemplates.map((item) => item.category)))];
 
 export default function TemplatesPage() {
   const [category, setCategory] = useState("همه");

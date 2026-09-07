@@ -62,7 +62,7 @@ export function SiteFooter() {
     <footer>
       <div className="footer-brand">
         <strong>akstory</strong>
-        <span>لحظه‌هایت را به چیزی واقعی تبدیل کن.</span>
+        <span>AksTory، روایت تصویری خاطرات شماست.</span>
         <form className="footer-subscribe" onSubmit={(event) => event.preventDefault()}>
           <label htmlFor="footer-email">عضویت در خبرنامه</label>
           <div>

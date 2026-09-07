@@ -6,8 +6,8 @@ export function HomeHowPreview() {
     <section className="how-light" id="how">
       <div className="how-light-head">
         <span>ساخت در سه قدم</span>
-        <h2>آن‌قدر ساده که در یک نشستن تمام می‌شود</h2>
-        <p>بدون اپ. قالب را بردار، عکس بگذار، جزئیات را عوض کن.</p>
+        <h2>ساخت یک کتاب خاطرات، ساده‌تر از همیشه</h2>
+        <p>فقط عکس‌هایت را انتخاب کن؛ عکستوری کمک می‌کند آن‌ها را به یک کتاب زیبا و حرفه‌ای تبدیل کنی.</p>
       </div>
       <div className="how-light-steps">
         {howSteps.map((step) => (

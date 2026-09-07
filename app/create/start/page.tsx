@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Sparkles } from "lucide-react";
 import { createProjectId, loadDraft, saveDraft } from "@/lib/draft";
-import { filesToPhotos, savePhotos } from "@/lib/photos";
+import { saveBookProject } from "@/lib/editor-book";
+import { filesToPhotos, savePhotos, type ProjectPhoto } from "@/lib/photos";
+import { buildSmartBook, SMART_STEPS, type SmartProgress, type SmartSelectionReport } from "@/lib/smart-creation";
 
 function ensureProjectId() {
   const existing = loadDraft().projectId;
@@ -43,12 +45,20 @@ function ManualArt() {
   );
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export default function CreateStartPage() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [photos, setPhotos] = useState<ProjectPhoto[]>([]);
+  const [phase, setPhase] = useState<"idle" | "ready" | "building">("idle");
+  const [progress, setProgress] = useState<SmartProgress>(0);
+  const [report, setReport] = useState<SmartSelectionReport | null>(null);
   const draft = useMemo(() => loadDraft(), []);
   const backHref = draft.templateId ? `/shop/${draft.templateId}` : "/create/templates";
 
@@ -59,24 +69,60 @@ export default function CreateStartPage() {
   }
 
   async function handleFiles(fileList: FileList | File[] | null) {
-    if (!fileList || fileList.length === 0 || busy) return;
+    if (!fileList || fileList.length === 0 || busy || phase === "building") return;
     setBusy(true);
     setError("");
     try {
-      const photos = await filesToPhotos(fileList);
-      if (photos.length === 0) {
+      const incoming = await filesToPhotos(fileList);
+      if (incoming.length === 0) {
         setError("یک تصویر معتبر انتخاب کن.");
-        setBusy(false);
         return;
       }
       const projectId = ensureProjectId();
-      savePhotos(projectId, photos);
-      goToEditor("smart", photos.length);
+      const next = [...photos, ...incoming];
+      setPhotos(next);
+      savePhotos(projectId, next);
+      saveDraft({ createMode: "smart", projectId, photoCount: next.length });
+      setPhase("ready");
     } catch {
       setError("بارگذاری عکس‌ها ممکن نشد. دوباره امتحان کن.");
+    } finally {
       setBusy(false);
     }
   }
+
+  async function startSmartBuild() {
+    if (photos.length === 0 || phase === "building") return;
+    setPhase("building");
+    setProgress(0);
+    setReport(null);
+    setError("");
+    const projectId = ensureProjectId();
+    saveDraft({ createMode: "smart", projectId, photoCount: photos.length });
+    const started = Date.now();
+    try {
+      const result = await buildSmartBook({
+        projectId,
+        templateId: draft.templateId,
+        photos,
+        onProgress: (step) => setProgress(step),
+      });
+      const elapsed = Date.now() - started;
+      if (elapsed < 1800) await wait(1800 - elapsed);
+      setProgress(4);
+      setReport(result.report);
+      saveBookProject(result.project);
+      savePhotos(projectId, result.kept);
+      saveDraft({ photoCount: result.kept.length });
+      await wait(900);
+      router.push(`/editor/${projectId}`);
+    } catch {
+      setPhase("ready");
+      setError("ساخت هوشمند ممکن نشد. دوباره امتحان کن.");
+    }
+  }
+
+  const percent = Math.min(100, (progress / SMART_STEPS.length) * 100);
 
   return (
     <main className="mode-page">
@@ -93,57 +139,96 @@ export default function CreateStartPage() {
         </Link>
       </header>
 
-      <section className="mode-split">
-        <article className="mode-col smart">
-          <h1>فتوبوک هوشمند</h1>
-          <p>
-            عکس‌هایت را بارگذاری کن تا چیدمان کتاب سریع ساخته شود. بهترین شات‌ها انتخاب می‌شوند، تکراری‌ها و
-            عکس‌های ضعیف کنار می‌روند و همه به ترتیب زمان مرتب می‌شوند — بدون اینکه خودت صفحه‌ها را بچینی.
-          </p>
-          <SmartArt />
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(event) => {
-              handleFiles(event.target.files);
-              event.target.value = "";
-            }}
-          />
-          <button className="mode-add" type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
-            <Plus size={18} />
-            {busy ? "در حال آماده‌سازی…" : "افزودن عکس‌ها"}
-          </button>
-          <div
-            className={dragOver ? "mode-drop active" : "mode-drop"}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragOver(false);
-              handleFiles(event.dataTransfer.files);
-            }}
-          >
-            یا عکس‌ها را اینجا بکش و رها کن
+      {phase === "building" ? (
+        <section className="smart-build" aria-live="polite">
+          <h1>در حال ساخت عکستوری شما...</h1>
+          <div className="smart-build-bar" aria-hidden="true">
+            <i style={{ width: `${percent}%` }} />
           </div>
-          {error ? <small className="mode-error">{error}</small> : null}
-        </article>
+          <ol className="smart-steps">
+            {SMART_STEPS.map((label, index) => {
+              const done = progress > index;
+              const current = progress === index;
+              return (
+                <li key={label} className={done ? "done" : current ? "current" : ""}>
+                  <span>{done ? "✓" : current ? "●" : "○"}</span>
+                  {label}
+                </li>
+              );
+            })}
+          </ol>
+          {report ? (
+            <ul className="smart-report">
+              <li>{report.reviewed.toLocaleString("fa-IR")} عکس بررسی شد</li>
+              <li>{report.similar.toLocaleString("fa-IR")} عکس مشابه کنار گذاشته شد</li>
+              <li>{report.selected.toLocaleString("fa-IR")} عکس برای کتاب انتخاب شد</li>
+            </ul>
+          ) : null}
+        </section>
+      ) : (
+        <section className="mode-split">
+          <article className="mode-col smart">
+            <h1>فتوبوک هوشمند</h1>
+            <p>عکس‌هایت را اضافه کن تا به صورت خودکار بهترین لحظه‌ها انتخاب شوند و یک عکستوری اولیه ساخته شود.</p>
+            {phase === "idle" ? <SmartArt /> : null}
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(event) => {
+                handleFiles(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            {phase === "ready" ? (
+              <div className="smart-ready">
+                <strong>عکس‌های شما آماده است 🎉</strong>
+                <p>
+                  تعداد عکس‌ها:
+                  <b> {photos.length.toLocaleString("fa-IR")} عدد</b>
+                </p>
+                <p>با ساخت هوشمند، ما یک نسخه اولیه از کتاب شما می‌سازیم.</p>
+                <button className="mode-add smart-run" type="button" onClick={startSmartBuild}>
+                  <Sparkles size={16} />
+                  ساخت هوشمند عکستوری
+                </button>
+              </div>
+            ) : null}
+            <button className="mode-add" type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
+              <Plus size={18} />
+              {busy ? "در حال آماده‌سازی…" : phase === "ready" ? "افزودن عکس بیشتر" : "افزودن عکس‌ها"}
+            </button>
+            <div
+              className={dragOver ? "mode-drop active" : "mode-drop"}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragOver(false);
+                handleFiles(event.dataTransfer.files);
+              }}
+            >
+              یا عکس‌ها را اینجا بکش و رها کن
+            </div>
+            {error ? <small className="mode-error">{error}</small> : null}
+          </article>
 
-        <article className="mode-col manual">
-          <h2>فتوبوک دستی</h2>
-          <p>کنترل کامل فرآیند ساخت را خودت به دست بگیر.</p>
-          <ManualArt />
-          <button className="mode-editor" type="button" onClick={() => goToEditor("manual")}>
-            ورود به ادیتور
-            <ChevronLeft size={16} />
-          </button>
-        </article>
-      </section>
+          <article className="mode-col manual">
+            <h2>فتوبوک دستی</h2>
+            <p>کنترل کامل فرآیند ساخت را خودت به دست بگیر.</p>
+            <ManualArt />
+            <button className="mode-editor" type="button" onClick={() => goToEditor("manual")}>
+              ورود به ادیتور
+              <ChevronLeft size={16} />
+            </button>
+          </article>
+        </section>
+      )}
     </main>
   );
 }

@@ -59,9 +59,18 @@ const ALIASES: Record<string, string> = {
   "grid-2": "split-v",
 };
 
+export const SMART_LAYOUTS: PhotoLayout[] = [
+  { id: "landscape-full", cells: [box(5, 22, 90, 56)] },
+  { id: "portrait-full", cells: [box(18, 5, 64, 90)] },
+  { id: "panorama-wide", cells: [box(4, 30, 92, 36)] },
+  { id: "portrait-grid", cells: [box(12, 4, 36, 45), box(52, 4, 36, 45), box(12, 51, 36, 45), box(52, 51, 36, 45)] },
+  { id: "hero-support", cells: [box(4, 6, 92, 44), box(14, 54, 32, 42), box(54, 54, 32, 42)] },
+  { id: "landscape-grid", cells: [box(4, 10, 44, 36), box(52, 10, 44, 36), box(4, 54, 44, 36), box(52, 54, 44, 36)] },
+];
+
 export function layoutById(id: string): PhotoLayout | undefined {
   const resolved = ALIASES[id] ?? id;
-  return PHOTO_LAYOUTS.find((item) => item.id === resolved);
+  return PHOTO_LAYOUTS.find((item) => item.id === resolved) ?? SMART_LAYOUTS.find((item) => item.id === resolved);
 }
 
 export function layoutCells(id: string) {

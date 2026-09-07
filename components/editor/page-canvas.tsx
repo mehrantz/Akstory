@@ -301,13 +301,6 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
               top: `${item.y}%`,
               width: `${item.w}%`,
               zIndex: item.z + (active ? 40 : 0),
-              color: item.color,
-              fontFamily: item.fontFamily,
-              fontSize: `${item.fontSize}px`,
-              fontWeight: item.bold ? 800 : 500,
-              fontStyle: item.italic ? "italic" : "normal",
-              textDecoration: item.underline ? "underline" : "none",
-              textAlign: item.align,
             }}
             onClick={(event) => {
               event.stopPropagation();
@@ -339,6 +332,15 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
               className="ed-text-edit"
               contentEditable={editing}
               suppressContentEditableWarning
+              style={{
+                color: item.color,
+                fontFamily: item.fontFamily,
+                fontSize: `${item.fontSize}px`,
+                fontWeight: item.bold ? 800 : 500,
+                fontStyle: item.italic ? "italic" : "normal",
+                textDecoration: item.underline ? "underline" : "none",
+                textAlign: item.align,
+              }}
               onPointerDown={(event) => {
                 if (editing) event.stopPropagation();
               }}

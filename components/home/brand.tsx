@@ -6,11 +6,11 @@ export function HomeBrand() {
     <section className="brand-story" id="brand">
       <div className="brand-visual" aria-hidden="true">
         <img src="/images/brand-visual.jpg" alt="" />
-        <p>داستان پشت داستان‌ها</p>
+        <p>جایی که عکس‌ها ماندگار می‌شوند</p>
       </div>
       <div className="brand-copy">
-        <span>با برند آشنا شو</span>
-        <h2>عکستوری برای خاطره‌هایی است که ارزش ورق زدن دارند</h2>
+        <span>کتابی که داستان خودت را روایت می‌کند</span>
+        <h2>عکستوری؛ جایی که عکس‌ها تبدیل به خاطره می‌شوند</h2>
         <div className="brand-values">
           {brandValues.map((item) => (
             <article key={item.title}>

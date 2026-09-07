@@ -7,13 +7,16 @@ import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { sliderProducts, type SliderProduct } from "@/data/catalog";
 
 function BookVisual({ item }: { item: SliderProduct }) {
-  if (item.visual === "mockup" && item.image) {
-    return (
-      <div className="slide-visual mockup" aria-hidden="true">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={item.image} alt={item.title} className="slide-mockup-image" />
-      </div>
-    );
+  if (item.visual === "mockup") {
+    if (item.image) {
+      return (
+        <div className="slide-visual mockup" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={item.image} alt={item.title} className="slide-mockup-image" />
+        </div>
+      );
+    }
+    return <div className="slide-visual mockup empty" aria-hidden="true" />;
   }
 
   if (item.visual === "open") {
@@ -83,7 +86,7 @@ export function HomeProductSlider() {
   }, [emblaApi, onSelect]);
 
   return (
-    <section className="product-slider" aria-label="کتاب‌های عکس شخصی">
+    <section className="product-slider" aria-label="کتاب‌های آماده برای شروع">
       <div className="slider-viewport" ref={emblaRef}>
         <div className="slider-track">
           {sliderProducts.map((item) => (
@@ -110,8 +113,8 @@ export function HomeProductSlider() {
                     <strong>{item.price} تومان</strong>
                   </div>
                 </div>
-                <Link className="slide-cta" href={`/create?template=${item.templateId}`}>
-                  شروع طراحی
+                <Link className="slide-cta" href={`/shop/${item.id}`}>
+                  ساخت این کتاب
                 </Link>
               </div>
             </article>

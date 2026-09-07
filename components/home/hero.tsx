@@ -12,17 +12,17 @@ export function HomeHero() {
         <SiteHeader overlay />
         <div className="hero-overlay">
           <h1>
-            لحظه‌هایت،
+            خاطراتت را تبدیل
             <br />
-            برای همیشه
+            به یک کتاب ماندگار کن
           </h1>
-          <p>یادگاری‌هایی که خاطره را از گوشی درمی‌آورند و واقعی می‌کنند.</p>
+          <p>عکس‌های لحظه‌های ارزشمندت را انتخاب کن؛ ما آن‌ها را به یک کتاب زیبا و حرفه‌ای تبدیل می‌کنیم.</p>
           <div className="hero-actions">
             <Link className="hero-btn hero-btn-fill" href="/create/templates">
-              پرفروش‌ها
+              ساخت اولین عکستوری
             </Link>
             <Link className="hero-btn hero-btn-ghost" href="/how-it-works">
-              چطوری کار می‌کنه؟
+              دیدن نمونه کتاب‌ها
             </Link>
           </div>
         </div>
