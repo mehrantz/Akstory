@@ -3,6 +3,7 @@ import {
   applyLayout,
   createDefaultBook,
   createInnerSpread,
+  fillEmptySlots,
   layoutSlotCount,
   relabelSpreads,
   type BookPage,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/editor-book";
 import { layoutCells } from "@/lib/photo-layouts";
 import type { ProjectPhoto } from "@/lib/photos";
+import { applySavedCoverToSpreads, type SavedCoverTemplate } from "@/lib/saved-templates";
 import type { PhotoAnalysis } from "@/lib/smart-creation/analyze";
 import { assignPhotosToSlots } from "@/lib/smart-creation/layout-matcher";
 import type { BookPlan, PagePlan } from "@/lib/smart-creation/planner";
@@ -35,19 +37,24 @@ export function assembleBook(input: {
   projectId: string;
   templateId: string | null;
   template?: TemplateItem | null;
+  coverTemplate?: SavedCoverTemplate | null;
   photos: ProjectPhoto[];
   analyses: PhotoAnalysis[];
   plan: BookPlan;
 }): BookProject {
   const analyses = new Map(input.analyses.map((item) => [item.photoId, item]));
-  const defaults = createDefaultBook(input.template);
+  const defaults = input.coverTemplate
+    ? applySavedCoverToSpreads(createDefaultBook(input.template), input.coverTemplate)
+    : createDefaultBook(input.template);
   const coverSource = defaults[0];
   const cover = {
     ...coverSource,
-    pages: [
-      buildPage(coverSource.pages[0], input.plan.cover, analyses),
-      coverSource.pages[1],
-    ] as typeof coverSource.pages,
+    pages: input.coverTemplate
+      ? (fillEmptySlots([coverSource], input.photos)[0].pages as typeof coverSource.pages)
+      : ([
+          buildPage(coverSource.pages[0], input.plan.cover, analyses),
+          coverSource.pages[1],
+        ] as typeof coverSource.pages),
   };
 
   const inners = input.plan.innerSpreads.map((item, index) => {

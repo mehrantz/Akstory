@@ -1,4 +1,5 @@
-import { normalizeSpreads, uid, type Spread } from "@/lib/editor-book";
+import { shopTemplates } from "@/data/catalog";
+import { normalizeSpreads, relabelSpreads, uid, type Spread } from "@/lib/editor-book";
 import type { ProjectPhoto } from "@/lib/photos";
 
 export type SavedCoverTemplate = {
@@ -8,6 +9,7 @@ export type SavedCoverTemplate = {
   spread: Spread;
   photos: ProjectPhoto[];
   previewImage?: string;
+  seriesId?: string;
 };
 
 const STORAGE_KEY = "akstory.savedCoverTemplates";
@@ -18,15 +20,56 @@ const DB_RECORD = "all";
 export const SHIRAZ_TEMPLATE_PREVIEW = "/images/templates/shiraz-preview.png";
 export const YAZD_TEMPLATE_PREVIEW = "/images/templates/yazd-preview.png";
 
+function seriesById(id?: string) {
+  if (!id) return undefined;
+  return shopTemplates.find((item) => item.id === id);
+}
+
+export function inferSeriesId(item: SavedCoverTemplate) {
+  if (seriesById(item.seriesId)) return item.seriesId;
+  const coverText = item.spread?.pages?.[0]?.texts?.map((text) => text.text).join(" ") ?? "";
+  const blob = `${item.title} ${item.previewImage ?? ""} ${coverText}`;
+  if (item.previewImage === SHIRAZ_TEMPLATE_PREVIEW || blob.includes("شیراز")) return "shiraz";
+  if (item.previewImage === YAZD_TEMPLATE_PREVIEW || blob.includes("یزد")) return "yazd";
+  const match = shopTemplates.find((series) => {
+    if (item.previewImage && series.image && item.previewImage === series.image) return true;
+    const city = series.title.replace("کتاب ", "");
+    return blob.includes(series.title) || blob.includes(city);
+  });
+  return match?.id;
+}
+
+function decorateTemplate(item: SavedCoverTemplate): SavedCoverTemplate {
+  const seriesId = inferSeriesId(item);
+  const series = seriesById(seriesId);
+  return {
+    ...item,
+    seriesId,
+    title: series?.title ?? item.title,
+    previewImage: series?.image ?? item.previewImage,
+    spread: normalizeSpreads([item.spread])[0],
+    photos: Array.isArray(item.photos) ? item.photos : [],
+  };
+}
+
 function normalizeList(items: SavedCoverTemplate[]) {
+  const seen = new Set<string>();
   return items
     .filter((item) => item?.id && item.spread)
-    .map((item) => ({
-      ...item,
-      spread: normalizeSpreads([item.spread])[0],
-      photos: Array.isArray(item.photos) ? item.photos : [],
-    }))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    .map(decorateTemplate)
+    .filter((item) => {
+      if (!item.seriesId) return true;
+      if (seen.has(item.seriesId)) return false;
+      seen.add(item.seriesId);
+      return true;
+    })
+    .sort((a, b) => {
+      const order = shopTemplates.map((item) => item.id);
+      const ai = a.seriesId ? order.indexOf(a.seriesId) : 999;
+      const bi = b.seriesId ? order.indexOf(b.seriesId) : 999;
+      if (ai !== bi) return ai - bi;
+      return b.createdAt.localeCompare(a.createdAt);
+    });
 }
 
 function readLocal(): SavedCoverTemplate[] {
@@ -105,10 +148,14 @@ async function persist(items: SavedCoverTemplate[]) {
 
 export async function loadSavedCoverTemplates() {
   const fromDb = await readDb();
-  if (fromDb && fromDb.length) return normalizeList(fromDb);
-  const fromLocal = normalizeList(readLocal());
-  if (fromLocal.length) await writeDb(fromLocal);
-  return fromLocal;
+  const source = fromDb && fromDb.length ? fromDb : readLocal();
+  const next = normalizeList(Array.isArray(source) ? source : []);
+  const changed = next.some((item) => {
+    const prev = source.find((entry) => entry.id === item.id);
+    return !prev || prev.seriesId !== item.seriesId || prev.title !== item.title || prev.previewImage !== item.previewImage;
+  });
+  if (next.length && (changed || !fromDb?.length)) await persist(next);
+  return next;
 }
 
 function coverTitle(spread: Spread) {
@@ -126,16 +173,29 @@ function photosForSpread(spread: Spread, photos: ProjectPhoto[]) {
   return photos.filter((photo) => ids.has(photo.id));
 }
 
-export async function saveCoverTemplate(spread: Spread, photos: ProjectPhoto[]) {
+export async function saveCoverTemplate(spread: Spread, photos: ProjectPhoto[], seriesId: string) {
+  const series = seriesById(seriesId);
   const item: SavedCoverTemplate = {
     id: uid("tpl"),
-    title: coverTitle(spread),
+    seriesId,
+    title: series?.title ?? coverTitle(spread),
+    previewImage: series?.image,
     createdAt: new Date().toISOString(),
     spread: JSON.parse(JSON.stringify(spread)) as Spread,
     photos: photosForSpread(spread, photos).map((photo) => ({ ...photo })),
   };
   const current = await loadSavedCoverTemplates();
-  return persist([item, ...current.filter((entry) => entry.id !== item.id)]);
+  return persist([item, ...current.filter((entry) => entry.id !== item.id && entry.seriesId !== seriesId)]);
+}
+
+export async function getCoverTemplateForSeries(seriesId: string | null) {
+  if (!seriesId) return null;
+  const items = await loadSavedCoverTemplates();
+  return items.find((item) => item.seriesId === seriesId) ?? null;
+}
+
+export function applySavedCoverToSpreads(spreads: Spread[], item: SavedCoverTemplate) {
+  return relabelSpreads([cloneCoverSpread(item.spread), ...spreads.slice(1)]);
 }
 
 export async function deleteSavedCoverTemplate(id: string) {

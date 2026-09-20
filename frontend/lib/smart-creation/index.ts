@@ -1,4 +1,5 @@
 import { getTemplateById } from "@/data/catalog";
+import { getCoverTemplateForSeries } from "@/lib/saved-templates";
 import type { BookProject } from "@/lib/editor-book";
 import type { ProjectPhoto } from "@/lib/photos";
 import { analyzePhotos } from "@/lib/smart-creation/analyze";
@@ -97,21 +98,26 @@ export async function buildSmartBook(input: {
   await mark(2);
   const plan = planBook(ranked);
   const template = input.templateId ? getTemplateById(input.templateId) ?? null : null;
+  const coverTemplate = await getCoverTemplateForSeries(input.templateId);
 
   await mark(3);
   const project = assembleBook({
     projectId: input.projectId,
     templateId: input.templateId,
     template,
+    coverTemplate,
     photos: kept,
     analyses: ranked,
     plan,
   });
 
   input.onProgress?.(4);
+  const extra = coverTemplate?.photos ?? [];
+  const ids = new Set(kept.map((photo) => photo.id));
+  const withCoverPhotos = extra.length ? [...kept, ...extra.filter((photo) => !ids.has(photo.id))] : kept;
   return {
     project,
-    kept,
+    kept: withCoverPhotos,
     dropped: Math.max(0, input.photos.length - kept.length),
     report: toReport(duplicates, ranked, kept.length, input.photos.length),
   };

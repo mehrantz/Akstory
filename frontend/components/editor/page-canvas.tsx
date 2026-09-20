@@ -9,7 +9,21 @@ import { snapBox, type GuideRect } from "@/lib/align-guides";
 import type { BookPage, Decor, PhotoFilter, PhotoSlot, TextBlock } from "@/lib/editor-book";
 import type { ProjectPhoto } from "@/lib/photos";
 
+type Box = { x: number; y: number; w: number; h?: number };
+
 export type FocusTarget = { type: "text" | "slot" | "decor"; id: string };
+
+export type TransferPayload = {
+  fromPageId: string;
+  toPageId: string;
+  kind: FocusTarget["type"];
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h?: number;
+  origin: Box;
+};
 
 type Props = {
   page: BookPage;
@@ -25,9 +39,10 @@ type Props = {
   onReplace: (slotId: string, files: FileList) => void;
   pickLabel?: string | null;
   onPick?: () => void;
+  allowCrossPage?: boolean;
+  onTransfer?: (payload: TransferPayload) => boolean;
 };
 
-type Box = { x: number; y: number; w: number; h?: number };
 type DragMode = "move" | "left" | "right" | "top" | "bottom" | "nw" | "ne" | "sw" | "se";
 
 const SIDE_MAP: Record<string, DragMode> = {
@@ -53,6 +68,23 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function findDropPage(clientX: number, clientY: number, face?: HTMLElement | null) {
+  const nodes = Array.from((face ?? document).querySelectorAll<HTMLElement>("[data-ed-page]"));
+  const hits: { id: string; rect: DOMRect; dist: number }[] = [];
+  for (const node of nodes) {
+    const id = node.dataset.edPage;
+    if (!id || id === "spine") continue;
+    const rect = node.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) continue;
+    if (clientY < rect.top || clientY > rect.bottom) continue;
+    const dist = clientX < rect.left ? rect.left - clientX : clientX > rect.right ? clientX - rect.right : 0;
+    hits.push({ id, rect, dist });
+  }
+  hits.sort((a, b) => a.dist - b.dist);
+  const best = hits[0];
+  return best ? { id: best.id, rect: best.rect } : null;
+}
+
 function photoFilter(filter: PhotoFilter) {
   if (filter === "grayscale") return "grayscale(1)";
   if (filter === "sepia") return "sepia(.85)";
@@ -61,11 +93,12 @@ function photoFilter(filter: PhotoFilter) {
   return "none";
 }
 
-export function PageCanvas({ page, photos, selected, focus, holding, onSelectPage, onFocus, onChange, onApplyAll, onPlace, onReplace, pickLabel, onPick }: Props) {
+export function PageCanvas({ page, photos, selected, focus, holding, onSelectPage, onFocus, onChange, onApplyAll, onPlace, onReplace, pickLabel, onPick, allowCrossPage = false, onTransfer }: Props) {
   const root = useRef<HTMLElement>(null);
   const suppressClick = useRef(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
   const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
 
   useEffect(() => {
@@ -84,7 +117,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
     apply: (next: Box) => void,
     mode: DragMode = "move",
     onDone?: (moved: boolean) => void,
-    options?: { keepMenu?: boolean; id?: string },
+    options?: { keepMenu?: boolean; id?: string; kind?: FocusTarget["type"] },
   ) {
     event.preventDefault();
     event.stopPropagation();
@@ -96,12 +129,30 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
     const origin = { x: current.x, y: current.y, w: current.w, h: measured.h };
     const hasHeight = current.h != null;
     const siblings = siblingRects(options?.id);
+    const grabX = ((startX - box.left) / box.width) * 100 - origin.x;
+    const grabY = ((startY - box.top) / box.height) * 100 - origin.y;
+    const canCross = Boolean(allowCrossPage && onTransfer && options?.kind && options?.id);
     let moved = false;
-    if (mode === "move" && !options?.keepMenu) setDragging(true);
+    let lastClientX = startX;
+    let lastClientY = startY;
+    if (mode === "move" && !options?.keepMenu) {
+      setDragging(true);
+      setDragId(options?.id ?? null);
+    }
 
-    function commit(next: Box) {
+    function commit(next: Box, snap = true) {
       if (!moved) return;
       const raw = { x: next.x, y: next.y, w: next.w, h: next.h ?? origin.h };
+      if (!snap) {
+        setGuides({ v: [], h: [] });
+        apply({
+          x: raw.x,
+          y: raw.y,
+          w: raw.w,
+          ...(hasHeight ? { h: raw.h } : {}),
+        });
+        return;
+      }
       const { rect, guides: nextGuides } = snapBox(raw, siblings, mode);
       setGuides(nextGuides);
       apply({
@@ -113,11 +164,14 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
     }
 
     function onMove(next: PointerEvent) {
+      lastClientX = next.clientX;
+      lastClientY = next.clientY;
       const dx = ((next.clientX - startX) / box!.width) * 100;
       const dy = ((next.clientY - startY) / box!.height) * 100;
       if (!moved && Math.abs(dx) + Math.abs(dy) > 0.35) {
         moved = true;
         setDragging(true);
+        setDragId(options?.id ?? null);
         if (!options?.keepMenu) onFocus(null);
       }
 
@@ -179,9 +233,16 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
         });
         return;
       }
+      const nextX = origin.x + dx;
+      const nextY = origin.y + dy;
+      if (canCross) {
+        const outside = nextX < -1 || nextX + origin.w > 101 || nextY < -1 || nextY + origin.h > 101;
+        commit({ x: nextX, y: nextY, w: origin.w, h: origin.h }, !outside);
+        return;
+      }
       commit({
-        x: clamp(origin.x + dx, 0, 100 - origin.w),
-        y: clamp(origin.y + dy, 0, hasHeight ? 100 - origin.h : 90),
+        x: clamp(nextX, 0, 100 - origin.w),
+        y: clamp(nextY, 0, hasHeight ? 100 - origin.h : 90),
         w: origin.w,
         h: origin.h,
       });
@@ -191,7 +252,39 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       setDragging(false);
+      setDragId(null);
       setGuides({ v: [], h: [] });
+
+      if (moved && mode === "move" && canCross && options?.kind && options?.id) {
+        const dest = findDropPage(lastClientX, lastClientY, root.current?.closest<HTMLElement>(".ed-face"));
+        if (dest && dest.id !== page.id) {
+          const x = clamp(((lastClientX - dest.rect.left) / dest.rect.width) * 100 - grabX, 0, 100 - origin.w);
+          const y = clamp(((lastClientY - dest.rect.top) / dest.rect.height) * 100 - grabY, 0, hasHeight ? 100 - origin.h : 90);
+          const transferred = onTransfer?.({
+            fromPageId: page.id,
+            toPageId: dest.id,
+            kind: options.kind,
+            id: options.id,
+            x,
+            y,
+            w: origin.w,
+            h: origin.h,
+            origin,
+          });
+          if (transferred) {
+            suppressClick.current = true;
+            onDone?.(moved);
+            return;
+          }
+        }
+        apply({
+          x: clamp(origin.x + ((lastClientX - startX) / box!.width) * 100, 0, 100 - origin.w),
+          y: clamp(origin.y + ((lastClientY - startY) / box!.height) * 100, 0, hasHeight ? 100 - origin.h : 90),
+          w: origin.w,
+          ...(hasHeight ? { h: origin.h } : {}),
+        });
+      }
+
       if (moved) {
         suppressClick.current = true;
         onChange((currentPage) => currentPage, "جابه‌جایی");
@@ -262,7 +355,8 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
   return (
     <article
       ref={root}
-      className={`ed-page ${page.kind}${selected ? " selected" : ""}`}
+      data-ed-page={page.id}
+      className={`ed-page ${page.kind}${selected ? " selected" : ""}${dragging ? " is-dragging" : ""}`}
       style={{ background: page.background }}
       onClick={() => {
         if (pickLabel) {
@@ -295,7 +389,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
           <div
             key={item.id}
             data-el={item.id}
-            className={`ed-node ed-text${active ? " on" : ""}${editing ? " editing" : ""}`}
+            className={`ed-node ed-text${active ? " on" : ""}${editing ? " editing" : ""}${dragId === item.id ? " dragging" : ""}`}
             style={{
               left: `${item.x}%`,
               top: `${item.y}%`,
@@ -320,7 +414,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
                 onSelectPage();
                 onFocus({ type: "text", id: item.id });
                 if (already) setEditingId(item.id);
-              }, { id: item.id });
+              }, { id: item.id, kind: "text" });
             }}
             onDoubleClick={(event) => {
               event.stopPropagation();
@@ -387,7 +481,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
           <div
             key={slot.id}
             data-el={slot.id}
-            className={`ed-node ed-photo${active ? " on" : ""}${slot.border ? " framed" : ""}`}
+            className={`ed-node ed-photo${active ? " on" : ""}${slot.border ? " framed" : ""}${dragId === slot.id ? " dragging" : ""}`}
             style={{
               left: `${slot.x}%`,
               top: `${slot.y}%`,
@@ -413,7 +507,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
                 if (moved) return;
                 onSelectPage();
                 onFocus({ type: "slot", id: slot.id });
-              }, { id: slot.id });
+              }, { id: slot.id, kind: "slot" });
             }}
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
@@ -470,7 +564,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
           <div
             key={item.id}
             data-el={item.id}
-            className={`ed-node ed-shape ${item.kind}${active ? " on" : ""}`}
+            className={`ed-node ed-shape ${item.kind}${active ? " on" : ""}${dragId === item.id ? " dragging" : ""}`}
             style={{
               left: `${item.x}%`,
               top: `${item.y}%`,
@@ -493,7 +587,7 @@ export function PageCanvas({ page, photos, selected, focus, holding, onSelectPag
                 if (moved) return;
                 onSelectPage();
                 onFocus({ type: "decor", id: item.id });
-              }, { id: item.id });
+              }, { id: item.id, kind: "decor" });
             }}
           >
             <div

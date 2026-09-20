@@ -22,10 +22,10 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import { getTemplateById } from "@/data/catalog";
+import { getTemplateById, shopTemplates } from "@/data/catalog";
 import { PHOTO_LAYOUTS } from "@/lib/photo-layouts";
 import { loadDraft, saveDraft } from "@/lib/draft";
-import { PageCanvas, type FocusTarget } from "@/components/editor/page-canvas";
+import { PageCanvas, type FocusTarget, type TransferPayload } from "@/components/editor/page-canvas";
 import { PageTray } from "@/components/editor/page-tray";
 import { TemplateCoverPreview } from "@/components/editor/template-cover-preview";
 import {
@@ -44,14 +44,18 @@ import {
   styleFromText,
   uid,
   type BookPage,
+  type Decor,
+  type PhotoSlot,
   type Spread,
   type TextBlock,
 } from "@/lib/editor-book";
 import { appendPhotos, filesToPhotos, loadPhotos, savePhotos, type ProjectPhoto } from "@/lib/photos";
 import { STICKER_CATEGORIES, stickersByCategory, type StickerCategory } from "@/lib/stickers";
 import {
+  applySavedCoverToSpreads,
   cloneCoverSpread,
   deleteSavedCoverTemplate,
+  getCoverTemplateForSeries,
   loadSavedCoverTemplates,
   saveCoverTemplate,
   type SavedCoverTemplate,
@@ -88,12 +92,44 @@ function cloneSpreads(spreads: Spread[]) {
   return JSON.parse(JSON.stringify(spreads)) as Spread[];
 }
 
+function takePageItem(page: BookPage, kind: FocusTarget["type"], id: string) {
+  if (kind === "text") {
+    const item = page.texts.find((entry) => entry.id === id);
+    if (!item) return null;
+    page.texts = page.texts.filter((entry) => entry.id !== id);
+    return item;
+  }
+  if (kind === "slot") {
+    const item = page.slots.find((entry) => entry.id === id);
+    if (!item) return null;
+    page.slots = page.slots.filter((entry) => entry.id !== id);
+    return item;
+  }
+  const item = page.decors.find((entry) => entry.id === id);
+  if (!item) return null;
+  page.decors = page.decors.filter((entry) => entry.id !== id);
+  return item;
+}
+
+function putPageItem(page: BookPage, kind: FocusTarget["type"], item: TextBlock | PhotoSlot | Decor) {
+  if (kind === "text") page.texts = [...page.texts, item as TextBlock];
+  else if (kind === "slot") page.slots = [...page.slots, item as PhotoSlot];
+  else page.decors = [...page.decors, item as Decor];
+}
+
+function applyItemBox(item: TextBlock | PhotoSlot | Decor, kind: FocusTarget["type"], payload: TransferPayload) {
+  if (kind === "text") return { ...item, x: payload.x, y: payload.y, w: payload.w };
+  return { ...item, x: payload.x, y: payload.y, w: payload.w, h: payload.h ?? (item as PhotoSlot | Decor).h };
+}
+
 export function PhotobookEditor({ projectId }: { projectId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const draft = useMemo(() => loadDraft(), []);
   const template = getTemplateById(draft.templateId ?? "") ?? null;
   const [photos, setPhotos] = useState<ProjectPhoto[]>([]);
   const [spreads, setSpreads] = useState<Spread[]>(() => createDefaultBook(template));
+  const spreadsRef = useRef(spreads);
+  spreadsRef.current = spreads;
   const [spreadIndex, setSpreadIndex] = useState(0);
   const [pageView, setPageView] = useState<"spread" | "one">("spread");
   const [oneSide, setOneSide] = useState<0 | 1>(0);
@@ -112,20 +148,44 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
   const [stickerCategory, setStickerCategory] = useState<StickerCategory>("iran");
   const [savedTemplates, setSavedTemplates] = useState<SavedCoverTemplate[]>([]);
   const [templateSaved, setTemplateSaved] = useState(false);
+  const [seriesPickerOpen, setSeriesPickerOpen] = useState(false);
   const [past, setPast] = useState<Snapshot[]>([]);
   const [future, setFuture] = useState<Snapshot[]>([]);
 
   useEffect(() => {
-    const storedPhotos = loadPhotos(projectId);
-    setPhotos(storedPhotos);
-    const stored = loadBookProject(projectId);
-    if (stored?.spreads?.length) {
-      setSpreads(normalizeSpreads(stored.spreads));
-      return;
+    let cancelled = false;
+    async function boot() {
+      const storedPhotos = loadPhotos(projectId);
+      const stored = loadBookProject(projectId);
+      const coverTpl = await getCoverTemplateForSeries(draft.templateId);
+      if (cancelled) return;
+      let extra = coverTpl?.photos ?? [];
+      if (stored?.spreads?.length) {
+        const sameSeries = stored.templateId === (template?.id ?? draft.templateId);
+        if (coverTpl && !sameSeries) {
+          const next = applySavedCoverToSpreads(normalizeSpreads(stored.spreads), coverTpl);
+          setSpreads(next);
+          saveBookProject({ projectId, templateId: template?.id ?? draft.templateId, spreads: next });
+        } else {
+          setSpreads(normalizeSpreads(stored.spreads));
+        }
+      } else {
+        let book = createDefaultBook(template);
+        if (coverTpl) book = applySavedCoverToSpreads(book, coverTpl);
+        book = storedPhotos.length ? fillEmptySlots(book, storedPhotos) : book;
+        setSpreads(book);
+        saveBookProject({ projectId, templateId: template?.id ?? draft.templateId, spreads: book });
+      }
+      const ids = new Set(storedPhotos.map((photo) => photo.id));
+      const merged = extra.length ? [...storedPhotos, ...extra.filter((photo) => !ids.has(photo.id))] : storedPhotos;
+      setPhotos(merged);
+      if (merged.length !== storedPhotos.length) savePhotos(projectId, merged);
     }
-    const book = createDefaultBook(template);
-    setSpreads(storedPhotos.length ? fillEmptySlots(book, storedPhotos) : book);
-  }, [projectId, template]);
+    boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [draft.templateId, projectId, template]);
 
   useEffect(() => {
     loadSavedCoverTemplates().then(setSavedTemplates);
@@ -219,6 +279,41 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
 
   function updatePage(side: 0 | 1, updater: (page: BookPage) => BookPage, history = "ویرایش صفحه") {
     changePage(side, updater, history);
+  }
+
+  function transferElement(payload: TransferPayload) {
+    const current = spreadsRef.current;
+    const spread = current[spreadIndex];
+    if (!spread) return false;
+    const fromSide = spread.pages.findIndex((page) => page.id === payload.fromPageId);
+    const toSide = spread.pages.findIndex((page) => page.id === payload.toPageId);
+    if (fromSide < 0 || toSide < 0 || fromSide === toSide) return false;
+
+    const historySpreads = cloneSpreads(current);
+    const historyItem = takePageItem(historySpreads[spreadIndex].pages[fromSide], payload.kind, payload.id);
+    if (historyItem) {
+      putPageItem(historySpreads[spreadIndex].pages[fromSide], payload.kind, applyItemBox(historyItem, payload.kind, {
+        ...payload,
+        x: payload.origin.x,
+        y: payload.origin.y,
+        w: payload.origin.w,
+        h: payload.origin.h,
+      }));
+    }
+
+    const next = cloneSpreads(current);
+    const item = takePageItem(next[spreadIndex].pages[fromSide], payload.kind, payload.id);
+    if (!item) return false;
+    putPageItem(next[spreadIndex].pages[toSide], payload.kind, applyItemBox(item, payload.kind, payload));
+
+    setPast((pastState) => [...pastState.slice(-30), { label: "جابه‌جایی به صفحه دیگر", spreads: historySpreads, index: spreadIndex }]);
+    setFuture([]);
+    setSpreads(next);
+    setSelectedPage(toSide as 0 | 1);
+    setOneSide(toSide as 0 | 1);
+    setFocus({ type: payload.kind, id: payload.id });
+    saveBookProject({ projectId, templateId: template?.id ?? null, spreads: next });
+    return true;
   }
 
   async function addFiles(list: FileList | File[] | null) {
@@ -416,11 +511,18 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
     commit("حذف صفحه", next, Math.max(0, spreadIndex - 1));
   }
 
-  async function saveCurrentCoverTemplate() {
+  function openSeriesPicker() {
     const cover = spreads[0];
     if (!cover || cover.pages[0]?.kind !== "cover-front") return;
-    const next = await saveCoverTemplate(cover, photos);
+    setSeriesPickerOpen(true);
+  }
+
+  async function saveCurrentCoverTemplate(seriesId: string) {
+    const cover = spreads[0];
+    if (!cover || cover.pages[0]?.kind !== "cover-front") return;
+    const next = await saveCoverTemplate(cover, photos, seriesId);
     setSavedTemplates(next);
+    setSeriesPickerOpen(false);
     setTemplateSaved(true);
     setTab("templates");
     window.setTimeout(() => setTemplateSaved(false), 1800);
@@ -492,7 +594,7 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
         </button>
 
         <div className="ed-top-end">
-          <button type="button" className="ed-template-save" onClick={saveCurrentCoverTemplate}>
+          <button type="button" className="ed-template-save" onClick={openSeriesPicker}>
             <BookOpen size={16} />
             <span>{templateSaved ? "قالب ذخیره شد" : "ذخیره قالب"}</span>
           </button>
@@ -552,6 +654,8 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
                       onReplace={(slotId, files) => replaceSlotPhoto(0, slotId, files)}
                       pickLabel={pickLabel(0)}
                       onPick={() => applyPending(0)}
+                      allowCrossPage
+                      onTransfer={transferElement}
                     />
                     {isCover ? (
                       <div className="ed-spine-col">
@@ -589,6 +693,8 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
                       onReplace={(slotId, files) => replaceSlotPhoto(1, slotId, files)}
                       pickLabel={pickLabel(1)}
                       onPick={() => applyPending(1)}
+                      allowCrossPage
+                      onTransfer={transferElement}
                     />
                   </>
                 )}
@@ -738,6 +844,7 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
                             <TemplateCoverPreview spread={item.spread} photos={item.photos} />
                           )}
                           <strong>{item.title}</strong>
+                          {item.seriesId ? <em className="ed-tpl-series">{shopTemplates.find((series) => series.id === item.seriesId)?.subtitle}</em> : null}
                         </button>
                         <button
                           type="button"
@@ -847,6 +954,34 @@ export function PhotobookEditor({ projectId }: { projectId: string }) {
             <Link href="/how-it-works">رفتن به راهنمای کامل</Link>
             <button type="button" onClick={() => setTutorialOpen(false)}>
               بستن
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {seriesPickerOpen ? (
+        <div className="ed-modal" onClick={() => setSeriesPickerOpen(false)}>
+          <div className="ed-dialog series-pick" onClick={(event) => event.stopPropagation()}>
+            <h3>این قالب مربوط به کدام سری است؟</h3>
+            <p>سری را انتخاب کن تا وقتی کاربر «ساخت با این سری» را زد، همین قالب جلد باز شود.</p>
+            <div className="ed-series-grid">
+              {shopTemplates.map((series) => {
+                const taken = savedTemplates.some((item) => item.seriesId === series.id);
+                return (
+                  <button key={series.id} type="button" className="ed-series-opt" onClick={() => saveCurrentCoverTemplate(series.id)}>
+                    {series.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={series.image} alt="" />
+                    ) : (
+                      <span className="ed-series-empty" />
+                    )}
+                    <strong>{series.title}</strong>
+                    {taken ? <small>جایگزین قالب فعلی می‌شود</small> : <small>{series.subtitle}</small>}
+                  </button>
+                );
+              })}
+            </div>
+            <button type="button" className="ed-dialog-cancel" onClick={() => setSeriesPickerOpen(false)}>
+              انصراف
             </button>
           </div>
         </div>

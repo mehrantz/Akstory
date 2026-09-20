@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, Search, Star, Trees } from "lucide-react";
 import { shopTemplates, type TemplateItem } from "@/data/catalog";
-import { createProjectId, loadDraft, saveDraft } from "@/lib/draft";
+import { createProjectId, saveDraft } from "@/lib/draft";
 
 const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
 const BASE_PAGES = 24;
@@ -107,7 +107,7 @@ export function ProductConfigure({ template }: { template: TemplateItem }) {
   }
 
   function startDesign() {
-    const projectId = loadDraft().projectId ?? createProjectId();
+    const projectId = createProjectId();
     saveDraft({
       templateId: scratch ? null : selected.id,
       projectId,
